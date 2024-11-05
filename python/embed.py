@@ -34,11 +34,15 @@ def create_tables(cursor):
 
 def embedding(cursor, model, fragid, nfrag):
     cfg = """{"model":"%s"}""" % model
-    sql = "insert into %s select src.id, json_unquote(json_extract(f.result, '$.id')), json_unquote(json_extract(f.result, '$.chunk')), \
+    sql = "select src.id, json_unquote(json_extract(f.result, '$.id')), json_unquote(json_extract(f.result, '$.chunk')), \
             json_unquote(json_extract(f.result, '$.embedding')) from %s as src CROSS APPLY \
-            moplugin_table('%s', 'embed', '%s', src.src) as f where mod(src.id, %d) = %d" % (chunk_tbl, page_tbl,  ollama_wasm, cfg, nfrag, fragid)
+            moplugin_table('%s', 'embed', '%s', src.src) as f where mod(src.id, %d) = %d" % (page_tbl,  ollama_wasm, cfg, nfrag, fragid)
     print(sql)
     cursor.execute(sql)
+    results = cursor.fetchall()
+
+    sql = "insert into wiki_chunk values (%s, %s, %s, %s)"
+    cursor.executemany(sql, results)
 
 
 if __name__ == "__main__":

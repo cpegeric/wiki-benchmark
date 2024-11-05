@@ -103,15 +103,18 @@ if __name__ == "__main__":
     index_file = sys.argv[2]
     stream_file = sys.argv[3]
 
+    index_uri = Path(os.path.abspath(index_file)).as_uri()
+    stream_uri = Path(os.path.abspath(stream_file)).as_uri()
+
     conn = pymysql.connect(host='localhost', port=6001, user='root', password = "111", database=dbname, autocommit=True)
     with conn:
         with conn.cursor() as cursor:
             if cmd == "create":
                 create_tables(cursor)
             elif cmd == "load":
-                datalinks = load_index(cursor, index_file, stream_file)
+                datalinks = load_index(cursor, index_uri, stream_uri)
                 pages = load_wikidump_pages(cursor, datalinks)
-                stream_dir = Path(stream_file).stem
+                stream_dir = Path(stream_uri).stem
                 rootdir = os.path.join(data_dir, stream_dir)
                 outfiles = convert_docx(rootdir, pages)
                 save_wikidump_pages(cursor, pages, outfiles)

@@ -1,6 +1,6 @@
 # Setup Guide
 
-Before run these scripts, please install ollama and llama3.2 model
+Before run these scripts, please install matrixone database, ollama with llama3.2 model.
 
 1. download the wikidump
 

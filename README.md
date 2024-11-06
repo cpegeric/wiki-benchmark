@@ -1,3 +1,7 @@
+# Setup Guide
+
+Before run these scripts, please install ollama and llama3.2 model
+
 1. download the wikidump
 
 download.sh better run in background.
@@ -46,3 +50,8 @@ wiki_page table will be updated with all docx files generated.
 
 Note: commands in zh_02.sh run in background mode. It will exit right away
 
+6. Create fulltext with wiki_page table
+
+7. Create vector index with wiki_chunk table
+
+8. run ask.py to ask question from ollama

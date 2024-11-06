@@ -9,7 +9,6 @@ wget https://dumps.wikimedia.org/zhwiki/latest/zhwiki-latest-pages-articles-mult
 wget https://dumps.wikimedia.org/zhwiki/latest/zhwiki-latest-pages-articles-multistream-index6.txt-p7096380p8596379.bz2
 wget https://dumps.wikimedia.org/zhwiki/latest/zhwiki-latest-pages-articles-multistream-index6.txt-p8596380p8879423.bz2
 wget https://dumps.wikimedia.org/zhwiki/latest/zhwiki-latest-pages-articles-multistream-index6.txt-p8596380p8897952.bz2
-wget https://dumps.wikimedia.org/zhwiki/latest/zhwiki-latest-pages-articles-multistream.xml.bz2
 wget https://dumps.wikimedia.org/zhwiki/latest/zhwiki-latest-pages-articles-multistream1.xml-p1p187712.bz2
 wget https://dumps.wikimedia.org/zhwiki/latest/zhwiki-latest-pages-articles-multistream2.xml-p187713p630160.bz2
 wget https://dumps.wikimedia.org/zhwiki/latest/zhwiki-latest-pages-articles-multistream3.xml-p630161p1389648.bz2

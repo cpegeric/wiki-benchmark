@@ -22,6 +22,11 @@ if [ -d $WIKITMP ] ; then
 fi
 mkdir -p $WIKITMP
 
+if ! [ -d $DATADIR ] ; then
+	echo "data directory $DDATADIR does not exist"
+	exit 2
+fi
+
 realpath $DBNAME/*.xml-*.bz2 | sort > $WIKITMP/$DBNAME.list
 realpath $DBNAME/*.txt-*.bz2 | sort > $WIKITMP/$DBNAME.index
 sed -e "s/\(.*\)-index\(.*\).txt-\(.*\)/\1\2.xml-\3/g" $WIKITMP/$DBNAME.index > $WIKITMP/$DBNAME.list.tmp
@@ -32,22 +37,22 @@ fi
 
 sed -e "s/\(.*\)-index\(.*\).txt-\(.*\)/& \1\2.xml-\3/g" $WIKITMP/$DBNAME.index > $WIKITMP/$DBNAME.cmd
 
-#if [ -d $DBDIR ]; then
-#	echo "data directory $DBDIR already exist"
-#	exit 2
-#fi
-#mkdir -p $DBDIR
+rm -f ${DBNAME}_01.sh
+echo "if [ -d $DBDIR ]; then
+	rm -r $DBDIR
+fi
+mkdir -p $DBDIR" > ${DBNAME}_01.sh
 
-rm -f run_$DBNAME.sh
 cat $WIKITMP/$DBNAME.cmd | while read line ; do
 	echo "if ! python3 $PWD/../python/wikidump.py $DBNAME $DBDIR $line; then
 	echo 'wikidump.py failed'
 	exit 1
-fi" >> run_$DBNAME.sh
+fi" >> ${DBNAME}_01.sh
 done
 
+rm -f ${DBNAME}_02.sh
 NFRAG=`expr $NTHREAD - 1`
 for FRAGID in $(seq 0 $NFRAG)
 do
-	echo "python3 $PWD/../python/embed.py zh $FRAGID $NTHREAD &" >> run_$DBNAME.sh
+	echo "python3 $PWD/../python/embed.py zh $FRAGID $NTHREAD &" >> ${DBNAME}_02.sh
 done

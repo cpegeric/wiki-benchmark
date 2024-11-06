@@ -1,6 +1,6 @@
+#!/bin/bash
 
-#index file
-
+# index file
 wget https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-pages-articles-multistream-index1.txt-p1p41242.bz2
 wget https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-pages-articles-multistream-index10.txt-p4045403p5399366.bz2
 wget https://dumps.wikimedia.org/enwiki/latest/enwiki-latest-pages-articles-multistream-index11.txt-p5399367p6899366.bz2

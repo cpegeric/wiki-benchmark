@@ -11,8 +11,8 @@ from docx import Document
 # pip install python-docx
 
 
-wikidump_wasm="https://github.com/cpegeric/mojo/raw/main/plugin/wikidump/wikidump.wasm"
-ollama_wasm="https://github.com/cpegeric/mojo/raw/main/plugin/ollama/ollama.wasm"
+wikidump_wasm="https://github.com/cpegeric/mojo/raw/plugin_framework/plugin/wikidump/wikidump.wasm"
+ollama_wasm="https://github.com/cpegeric/mojo/raw/plugin_framework/plugin/ollama/ollama.wasm"
 page_tbl = "wiki_page"
 data_dir = "/tmp/wikidump"
 

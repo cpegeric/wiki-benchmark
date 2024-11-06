@@ -40,7 +40,10 @@ sed -e "s/\(.*\)-index\(.*\).txt-\(.*\)/& \1\2.xml-\3/g" $WIKITMP/$DBNAME.index 
 
 rm -f run_$DBNAME.sh
 cat $WIKITMP/$DBNAME.cmd | while read line ; do
-	echo "if ! python3 $PWD/../python/wikidump.py $DBNAME $DBDIR $line; then; echo 'wikidump.py failed'; exit 1; fi" >> run_$DBNAME.sh
+	echo "if ! python3 $PWD/../python/wikidump.py $DBNAME $DBDIR $line; then
+	echo 'wikidump.py failed'
+	exit 1
+fi" >> run_$DBNAME.sh
 done
 
 NFRAG=`expr $NTHREAD - 1`

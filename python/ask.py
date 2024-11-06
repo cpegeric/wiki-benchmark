@@ -22,29 +22,8 @@ if wikihome is None:
 wikidump_wasm=Path(os.path.join(wikihome, "wasm/wikidump.wasm")).as_uri()
 ollama_wasm=Path(os.path.join(wikihome, "wasm/ollama.wasm")).as_uri()
 
-
-dbname="test"
 chunk_tbl = "wiki_chunk"
-page_tbl = "wiki_page"
-data_dir = "/tmp/wikidump"
 model = "llama3.2"
-
-def create_tables(cursor):
-    create_page_table_sql = "create table %s (id bigint, chunkid int, text varchar, embed vecf32(3072))" % chunk_tbl
-    cursor.execute(create_page_table_sql)
-
-def embedding(cursor, model, fragid, nfrag):
-    cfg = """{"model":"%s"}""" % model
-    sql = "select src.id, json_unquote(json_extract(f.result, '$.id')), json_unquote(json_extract(f.result, '$.chunk')), \
-            json_unquote(json_extract(f.result, '$.embedding')) from %s as src CROSS APPLY \
-            moplugin_table('%s', 'embed', '%s', src.src) as f where mod(src.id, %d) = %d" % (page_tbl,  ollama_wasm, cfg, nfrag, fragid)
-    print(sql)
-    cursor.execute(sql)
-    results = cursor.fetchall()
-
-    sql = "insert into wiki_chunk values (%s, %s, %s, %s)"
-    cursor.executemany(sql, results)
-
 
 def generate(cursor, model, line):
     cfg = """{"model":"%s"}""" % model
@@ -76,10 +55,11 @@ def generate(cursor, model, line):
 
 if __name__ == "__main__":
     nargv = len(sys.argv)
-    if nargv != 1:
-        print("usage: generate.py")
+    if nargv != 2:
+        print("usage: generate.py dbname")
         sys.exit(1)
 
+    dbname = sys.argv[1]
 
     conn = pymysql.connect(host='localhost', port=6001, user='root', password = "111", database=dbname, autocommit=True)
     with conn:

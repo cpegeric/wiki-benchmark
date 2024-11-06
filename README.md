@@ -34,5 +34,10 @@ zh_01.sh, zh_02.sh, en_01.sh and en_02.sh script will be created.
 > bash zh_02.sh
 ```
 
+01.sh will parse the wikidump and generate docx files in data directory.
+wiki_page table will be updated with all docx files generated.
+
+02.sh will generate the embedding from wiki_age table to wiki_chunk table.
+
 Note: commands in zh_02.sh run in background mode. It will exit right away
 

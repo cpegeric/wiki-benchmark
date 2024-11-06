@@ -10,28 +10,11 @@ from docx import Document
 # pip install wikitextparser
 # pip install python-docx
 
-# create database
 
-# create tables
-
-# load index file
-
-# load wikidump pages
-
-# convert into docx
-
-wikidump_wasm="https://github.com/cpegeric/wikidump-wasm/raw/main/wikidump/wikidump.wasm"
-ollama_wasm="https://github.com/cpegeric/ollama-wasm/raw/main/ollama/ollama.wasm"
-dbname="test"
-index_tbl = "wiki_index"
+wikidump_wasm="https://github.com/cpegeric/mojo/raw/main/plugin/wikidump/wikidump.wasm"
+ollama_wasm="https://github.com/cpegeric/mojo/raw/main/plugin/ollama/ollama.wasm"
 page_tbl = "wiki_page"
 data_dir = "/tmp/wikidump"
-
-
-def create_tables(cursor):
-    create_page_table_sql = "create table wiki_page (id bigint, title varchar, src datalink)"
-    cursor.execute(create_page_table_sql)
-
 
 def load_index(cursor, indexfile, streamfile):
     sql = "select concat('%s?offset=', json_unquote(json_extract(result, '$.offset')), '&size=', \
@@ -63,7 +46,7 @@ def load_wikidump_pages(cursor, datalinks):
         
     return pages
 
-def wikitextparser(wikitext, outfile):
+def wiki2docx(wikitext, outfile):
     parsed = wtp.parse(wikitext)
     text = parsed.plain_text()
     document = Document()
@@ -80,8 +63,8 @@ def convert_docx(rootdir, pages):
         outfile = os.path.join(rootdir, "%s.docx" %(p[0]))
         #print("id=%s, title=%s" % (p[0], p[1]))
         #print(outfile)
-        wikitextparser(p[2], outfile)
-        outfiles.append("file://%s" % outfile)
+        wiki2docx(p[2], outfile)
+        outfiles.append(Path(outfile).as_uri())
 
     return outfiles
 
@@ -96,12 +79,13 @@ def save_wikidump_pages(cursor, pages, outfiles):
         
 if __name__ == "__main__":
     nargv = len(sys.argv)
-    if nargv != 4:
-        print("usage: wiki.py [create|load] wikistream-index.txt.bz2 wikistream.xml.bz2")
+    if nargv != 5:
+        print("usage: wikidump.py dbname datadir wikistream-index.txt.bz2 wikistream.xml.bz2")
 
-    cmd = sys.argv[1]
-    index_file = sys.argv[2]
-    stream_file = sys.argv[3]
+    dbname = sys.argv[1]
+    data_dir = sys.argv[2]
+    index_file = sys.argv[3]
+    stream_file = sys.argv[4]
 
     index_uri = Path(os.path.abspath(index_file)).as_uri()
     stream_uri = Path(os.path.abspath(stream_file)).as_uri()
@@ -109,15 +93,10 @@ if __name__ == "__main__":
     conn = pymysql.connect(host='localhost', port=6001, user='root', password = "111", database=dbname, autocommit=True)
     with conn:
         with conn.cursor() as cursor:
-            if cmd == "create":
-                create_tables(cursor)
-            elif cmd == "load":
-                datalinks = load_index(cursor, index_uri, stream_uri)
-                pages = load_wikidump_pages(cursor, datalinks)
-                stream_dir = Path(stream_uri).stem
-                rootdir = os.path.join(data_dir, stream_dir)
-                outfiles = convert_docx(rootdir, pages)
-                save_wikidump_pages(cursor, pages, outfiles)
-            else:
-                print("command not supported")
+            datalinks = load_index(cursor, index_uri, stream_uri)
+            pages = load_wikidump_pages(cursor, datalinks)
+            stream_dir = Path(stream_uri).stem
+            rootdir = os.path.join(data_dir, stream_dir)
+            outfiles = convert_docx(rootdir, pages)
+            save_wikidump_pages(cursor, pages, outfiles)
 

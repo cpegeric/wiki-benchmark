@@ -2,7 +2,13 @@
 
 Before run these scripts, please install matrixone database, ollama with llama3.2 model.
 
-1. source env.sh
+1. setup environment
+
+```
+pip install wikitextparser
+pip install python-docx
+source env.sh
+```
 
 2. download the wikidump
 

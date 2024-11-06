@@ -11,18 +11,18 @@ import fileinput
 # pip install wikitextparser
 # pip install python-docx
 
-# create database
+wikihome = os.getenv("WIKI_HOME")
+if wikihome is None:
+    print("WIKI_HOME environment variable not found")
+    sys.exit(10)
 
-# create tables
+#wikidump_wasm="https://github.com/cpegeric/wikidump-wasm/raw/main/wikidump/wikidump.wasm"
+#ollama_wasm="https://github.com/cpegeric/ollama-wasm/raw/main/ollama/ollama.wasm"
 
-# load index file
+wikidump_wasm=Path(os.path.join(wikihome, "wasm/wikidump.wasm")).as_uri()
+ollama_wasm=Path(os.path.join(wikihome, "wasm/ollama.wasm")).as_uri()
 
-# load wikidump pages
 
-# convert into docx
-
-wikidump_wasm="https://github.com/cpegeric/wikidump-wasm/raw/main/wikidump/wikidump.wasm"
-ollama_wasm="https://github.com/cpegeric/ollama-wasm/raw/main/ollama/ollama.wasm"
 dbname="test"
 chunk_tbl = "wiki_chunk"
 page_tbl = "wiki_page"

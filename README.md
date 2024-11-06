@@ -11,7 +11,9 @@ directory zh and en will be created and files are in zh and en directory.
 3. create tables for zh and en database
 
 ```
-> (cd python ; python3 create.py zh ; python3 create.py en)
+> cd python
+> python3 create.py create zh
+> python3 create.py create en
 ```
 
 4. compile the script

@@ -23,7 +23,7 @@ fi
 mkdir -p $WIKITMP
 
 if ! [ -d $DATADIR ] ; then
-	echo "data directory $DDATADIR does not exist"
+	echo "data directory $DATADIR does not exist"
 	exit 2
 fi
 

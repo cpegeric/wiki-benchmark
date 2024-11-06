@@ -16,15 +16,21 @@ DBDIR=$DATADIR/$DBNAME
 
 # create file list
 
-realpath $DBNAME/*.xml-*.bz2 | sort > $DBNAME.list
-realpath $DBNAME/*.txt-*.bz2 | sort > $DBNAME.index
-sed -e "s/\(.*\)-index\(.*\).txt-\(.*\)/\1\2.xml-\3/g" $DBNAME.index > $DBNAME.list.tmp
-if ! diff -q $DBNAME.list $DBNAME.list.tmp ; then
+WIKITMP=/tmp/wikitmp
+if [ -d $WIKITMP ] ; then
+	rm -r $WIKITMP
+fi
+mkdir -p $WIKITMP
+
+realpath $DBNAME/*.xml-*.bz2 | sort > $WIKITMP/$DBNAME.list
+realpath $DBNAME/*.txt-*.bz2 | sort > $WIKITMP/$DBNAME.index
+sed -e "s/\(.*\)-index\(.*\).txt-\(.*\)/\1\2.xml-\3/g" $WIKITMP/$DBNAME.index > $WIKITMP/$DBNAME.list.tmp
+if ! diff -q $WIKITMP/$DBNAME.list $WIKITMP/$DBNAME.list.tmp ; then
 	echo "failed $DBNAME"
 	exit 1
 fi
 
-sed -e "s/\(.*\)-index\(.*\).txt-\(.*\)/& \1\2.xml-\3/g" $DBNAME.index > $DBNAME.cmd
+sed -e "s/\(.*\)-index\(.*\).txt-\(.*\)/& \1\2.xml-\3/g" $WIKITMP/$DBNAME.index > $WIKITMP/$DBNAME.cmd
 
 #if [ -d $DBDIR ]; then
 #	echo "data directory $DBDIR already exist"
@@ -33,7 +39,7 @@ sed -e "s/\(.*\)-index\(.*\).txt-\(.*\)/& \1\2.xml-\3/g" $DBNAME.index > $DBNAME
 #mkdir -p $DBDIR
 
 rm -f run_$DBNAME.sh
-cat $DBNAME.cmd | while read line ; do
+cat $WIKITMP/$DBNAME.cmd | while read line ; do
 	echo "if ! python3 $PWD/../python/wikidump.py $DBNAME $DBDIR $line; then; echo 'wikidump.py failed'; exit 1; fi" >> run_$DBNAME.sh
 done
 

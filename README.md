@@ -1,7 +1,10 @@
 1. download the wikidump
 
+download.sh better run in background.
+
 ```
-> (cd downloads ; bash download.sh)
+> cd downloads 
+> bash download.sh &
 ```
 
 directory zh and en will be created and files are in zh and en directory.

@@ -10,8 +10,14 @@ from docx import Document
 # pip install wikitextparser
 # pip install python-docx
 
-wikidump_wasm="https://github.com/cpegeric/mojo/raw/plugin_framework/plugin/wikidump/wikidump.wasm"
-ollama_wasm="https://github.com/cpegeric/mojo/raw/plugin_framework/plugin/ollama/ollama.wasm"
+wikihome = os.getenv("WIKI_HOME")
+if wikihome is None:
+    print("WIKI_HOME environment variable not found")
+    sys.exit(10)
+
+
+wikidump_wasm=Path(os.path.join(wikihome, "wasm/wikidump.wasm")).as_uri()
+ollama_wasm=Path(os.path.join(wikihome, "wasm/ollama.wasm")).as_uri()
 page_tbl = "wiki_page"
 chunk_tbl = "wiki_chunk"
 

@@ -2,7 +2,9 @@
 
 Before run these scripts, please install matrixone database, ollama with llama3.2 model.
 
-1. download the wikidump
+1. source env.sh
+
+2. download the wikidump
 
 download.sh better run in background.
 
@@ -13,9 +15,9 @@ download.sh better run in background.
 
 directory zh and en will be created and files are in zh and en directory.
 
-2. create database zh and en
+3. create database zh and en
 
-3. create tables for zh and en database
+4. create tables for zh and en database
 
 ```
 > cd python
@@ -23,7 +25,7 @@ directory zh and en will be created and files are in zh and en directory.
 > python3 create.py create en
 ```
 
-4. compile the script
+5. compile the script
 
 ```
 > cd downloads
@@ -36,7 +38,7 @@ e.g.
 ```
 zh_01.sh, zh_02.sh, en_01.sh and en_02.sh script will be created.
 
-5. run the script in sequence
+6. run the script in sequence
 
 ```
 > bash zh_01.sh &> log
@@ -50,8 +52,8 @@ wiki_page table will be updated with all docx files generated.
 
 Note: commands in zh_02.sh run in background mode. It will exit right away
 
-6. Create fulltext with wiki_page table
+7. Create fulltext with wiki_page table
 
-7. Create vector index with wiki_chunk table
+8. Create vector index with wiki_chunk table
 
-8. run ask.py to ask question from ollama
+9. run ask.py to ask question from ollama

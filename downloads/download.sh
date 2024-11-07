@@ -1,9 +1,19 @@
 #!/bin/sh
 
+if [ -d zh ] ; then
+	echo "directory zh exist"
+	exit 1
+fi
+
+if [ -d en ] ; then
+	echo "directory en exist"
+	exit 2
+fi
+
 mkdir -p zh en
 
 if ! wget https://dumps.wikimedia.org/enwiki/latest/ ; then
-	echo "wget failed"
+	echo "wget enwiki index.html failed"
 	exit 1
 fi
 
@@ -19,7 +29,7 @@ rm index.html
 
 
 if ! wget https://dumps.wikimedia.org/zhwiki/latest/ ; then
-        echo "wget failed"
+        echo "wget zhwiki index.html failed"
         exit 1
 fi
 
@@ -34,5 +44,5 @@ egrep -e "wiki.*.stream-index[0-9].*.txt.*.bz2\"" index.html | sed -e "s/<a href
 rm index.html
 
 
-#(cd zh ; bash ../download_zh.sh)
-#(cd en ; bash ../download_en.sh)
+(cd zh ; bash ../download_zh.sh)
+(cd en ; bash ../download_en.sh)

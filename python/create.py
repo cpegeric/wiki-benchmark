@@ -18,20 +18,59 @@ if wikihome is None:
 
 wikidump_wasm=Path(os.path.join(wikihome, "wasm/wikidump.wasm")).as_uri()
 ollama_wasm=Path(os.path.join(wikihome, "wasm/ollama.wasm")).as_uri()
-page_tbl = "wiki_page"
-chunk_tbl = "wiki_chunk"
+text_tbl = "wiki_text"
+json_tbl = "wiki_json"
+docx_tbl = "wiki_docx"
+pdf_tbl = "wiki_pdf"
 
 def create_tables(cursor):
-    sql = "create table %s (id bigint primary key, title varchar, src datalink)" % page_tbl
-    cursor.execute(sql)
-    sql = "create table %s (id bigint, chunkid int, text varchar, embed vecf32(3072), primary key (id,chunkid))" % chunk_tbl
+    # wiki text
+    sql = "create table %s (id bigint primary key auto_increment, wiki_id bigint, title varchar, src text)" % text_tbl
     cursor.execute(sql)
 
+    chunk_tbl = "%s_chunk" % text_tbl
+    sql = "create table %s (chunkid bigint primary key auto_increment, wiki_id bigint, text varchar, embed vecf32(3072))" % chunk_tbl
+    cursor.execute(sql)
+
+    # wiki json
+    sql = "create table %s (id bigint primary key auto_increment, wiki_id bigint, src json)" % json_tbl
+    cursor.execute(sql)
+    
+    chunk_tbl = "%s_chunk" % json_tbl
+    sql = "create table %s (chunkid bigint primary key auto_increment, wiki_id bigint, text varchar, embed vecf32(3072))" % chunk_tbl
+    cursor.execute(sql)
+
+    # wiki docx
+    sql = "create table %s (id bigint primary key auto_increment, wiki_id bigint, title varchar, src datalink)" % docx_tbl
+    cursor.execute(sql)
+
+    chunk_tbl = "%s_chunk" % docx_tbl
+    sql = "create table %s (chunkid bigint primary key auto_increment, wiki_id bigint, text varchar, embed vecf32(3072))" % chunk_tbl
+    cursor.execute(sql)
+
+    # wiki pdf
+    sql = "create table %s (id bigint primary key auto_increment, wiki_id bigint, title varchar, src datalink)" % pdf_tbl
+    cursor.execute(sql)
+
+    chunk_tbl = "%s_chunk" % pdf_tbl
+    sql = "create table %s (chunkid bigint primary key auto_increment, wiki_id bigint, text varchar, embed vecf32(3072))" % chunk_tbl
+    cursor.execute(sql)
+
+
+def drop_table(cursor, tblname):
+    sql = "drop table %s" % tblname
+    cursor.execute(sql)
+
+
 def drop_tables(cursor):
-    sql = "drop table %s" % page_tbl
-    cursor.execute(sql)
-    sql = "drop table %s" % chunk_tbl
-    cursor.execute(sql)
+    drop_table(cursor, text_tbl)
+    drop_table(cursor, "%s_chunk" % text_tbl)
+    drop_table(cursor, json_tbl)
+    drop_table(cursor, "%s_chunk" % json_tbl)
+    drop_table(cursor, docx_tbl)
+    drop_table(cursor, "%s_chunk" % docx_tbl)
+    drop_table(cursor, pdf_tbl)
+    drop_table(cursor, "%s_chunk" % pdf_tbl)
 
 
 if __name__ == "__main__":

@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import wikitextparser as wtp
 from docx import Document
+import json
 
 # installation
 # pip install wikitextparser
@@ -18,7 +19,6 @@ if wikihome is None:
 
 wikidump_wasm=Path(os.path.join(wikihome, "wasm/wikidump.wasm")).as_uri()
 ollama_wasm=Path(os.path.join(wikihome, "wasm/ollama.wasm")).as_uri()
-page_tbl = "wiki_page"
 data_dir = "/tmp/wikidump"
 
 def load_index(cursor, indexfile, streamfile):
@@ -34,7 +34,13 @@ cast('%s' as datalink)) as f" % (streamfile, wikidump_wasm, indexfile)
 
     return datalinks
 
+def wiki2txt(wiki):
+    parsed = wtp.parse(wikitext)
+    text = parsed.plain_text()
+    return text
 
+
+# result array of tuple (id, title, text)
 def load_wikidump_pages(cursor, datalinks):
     #print("load wikidump pages")
 
@@ -47,19 +53,43 @@ def load_wikidump_pages(cursor, datalinks):
         s = sql % (wikidump_wasm, dl)
         cursor.execute(s)
         results = cursor.fetchall()
-        pages.extend(results)
+        for r in results:
+            txt = wiki2txt(r[2])
+            pages.append((r[0], r[1], txt))
         
     return pages
 
-def wiki2docx(wikitext, outfile):
-    parsed = wtp.parse(wikitext)
-    text = parsed.plain_text()
+def wiki2docx(text, outfile):
     document = Document()
     document.add_paragraph(text)
     document.save(outfile)
 
 
-def convert_docx(rootdir, pages):
+def insert_text(cursor, pages):
+    sql = "insert into wiki_text (wiki_id, title, src) values (%s, %s, %s)"
+    val = []
+    for p, f in zip(pages, outfiles):
+        val.append((p[0], p[1], p[2]))
+    cursor.executemany(sql, val)
+    
+
+def insert_json(cursor, pages):
+    sql = "insert into wiki_json (wiki_id, src) values (%s, %s)"
+    val = []
+    for p, f in zip(pages, outfiles):
+        v = {"id": p[1], "text":p[2]}
+        val.append((p[0], json.dumps(v)))
+    cursor.executemany(sql, val)
+
+def save_pdf(rootdir, pages):
+    pass
+
+def txt2docx(text, outfile):
+    document = Document()
+    document.add_paragraph(text)
+    document.save(outfile)
+
+def save_docx(rootdir, pages):
     #print(rootdir)
     if not os.path.exists(rootdir):
         os.mkdir(rootdir)
@@ -68,13 +98,14 @@ def convert_docx(rootdir, pages):
         outfile = os.path.join(rootdir, "%s.docx" %(p[0]))
         #print("id=%s, title=%s" % (p[0], p[1]))
         #print(outfile)
-        wiki2docx(p[2], outfile)
-        outfiles.append(Path(outfile).as_uri())
+        txt2docx(p[2], outfile)
+        if os.path.isfile(outfile):
+            outfiles.append(Path(outfile).as_uri())
 
     return outfiles
 
-def save_wikidump_pages(cursor, pages, outfiles):
-    sql = "insert into wiki_page values (%s, %s, %s)"
+def save_docx_index(cursor, pages, outfiles):
+    sql = "insert into wiki_docx (wiki_id, title, src) values (%s, %s, %s)"
     val = []
     for p, f in zip(pages, outfiles):
         val.append((p[0], p[1], f))
@@ -82,6 +113,35 @@ def save_wikidump_pages(cursor, pages, outfiles):
 
     cursor.executemany(sql, val)
         
+
+def mysql_connect():
+    conn = pymysql.connect(host='localhost', port=6001, user='root', password = "111", database=dbname, autocommit=True)
+    return conn
+
+
+def mo_insert_text_json(pages):
+    conn = mysql_connect()
+    with conn:
+        with conn.cursor() as cursor:
+            # insert wiki (id, title, text) into wiki_text
+            insert_text(cursor, pages)
+
+            # insert wiki (id, title, text) into wiki_json
+            insert_json(cursor, pages)
+
+def mo_insert_docx(cursor, data_dir, stream_uri, pages, datalinks):
+    conn = mysql_connect()
+    with conn:
+        with conn.cursor() as cursor:
+            # save to docx and insert index into wiki_docx
+            stream_dir = Path(stream_uri).stem
+            rootdir = os.path.join(data_dir, stream_dir)
+            outfiles = save_docx(rootdir, pages)
+            save_docx_index(cursor, pages, outfiles)
+
+            # save to pdf and insert index into wiki_pdf
+
+
 if __name__ == "__main__":
     nargv = len(sys.argv)
     if nargv != 5:
@@ -95,13 +155,23 @@ if __name__ == "__main__":
     index_uri = Path(os.path.abspath(index_file)).as_uri()
     stream_uri = Path(os.path.abspath(stream_file)).as_uri()
 
-    conn = pymysql.connect(host='localhost', port=6001, user='root', password = "111", database=dbname, autocommit=True)
+    pages = None
+    datalinks = None
+    
+    conn = mysql_connect()
     with conn:
         with conn.cursor() as cursor:
+            # get stream sessions
             datalinks = load_index(cursor, index_uri, stream_uri)
+
+            # get wiki (id, title, text)
             pages = load_wikidump_pages(cursor, datalinks)
-            stream_dir = Path(stream_uri).stem
-            rootdir = os.path.join(data_dir, stream_dir)
-            outfiles = convert_docx(rootdir, pages)
-            save_wikidump_pages(cursor, pages, outfiles)
+
+
+    # insert text and json into database
+    mo_insert_text_json(pages)
+
+    # save docx file and insert docx filepath to database
+    mo_insert_docx(data_Dir, stream_uri, pages, datalinks)
+
 

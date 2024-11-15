@@ -22,17 +22,16 @@ if wikihome is None:
 wikidump_wasm=Path(os.path.join(wikihome, "wasm/wikidump.wasm")).as_uri()
 ollama_wasm=Path(os.path.join(wikihome, "wasm/ollama.wasm")).as_uri()
 
-chunk_tbl = "wiki_chunk"
 model = "llama3.2"
 
-def generate(cursor, model, line):
+def generate(cursor, chunk_tbl, model, line):
     cfg = """{"model":"%s"}""" % model
     sql = "select json_unquote(json_extract(result, '$.embedding')) from moplugin_table('%s', 'embed', '%s', '%s') as f" % (ollama_wasm, cfg, line)
     cursor.execute(sql)
     results = cursor.fetchall()
     #print(results[0][0])
 
-    sql = "select text from wiki_chunk order by l2_distance(embed, '%s') asc limit 2" % results[0][0]
+    sql = "select text from %s order by l2_distance(embed, '%s') asc limit 2" % (chunk_tbl, results[0][0])
     cursor.execute(sql)
     results = cursor.fetchall()
     #print(results)
@@ -55,11 +54,12 @@ def generate(cursor, model, line):
 
 if __name__ == "__main__":
     nargv = len(sys.argv)
-    if nargv != 2:
-        print("usage: generate.py dbname")
+    if nargv != 3:
+        print("usage: generate.py dbname chunk_tbl")
         sys.exit(1)
 
     dbname = sys.argv[1]
+    chunk_tbl = sys.argv[2]
 
     conn = pymysql.connect(host='localhost', port=6001, user='root', password = "111", database=dbname, autocommit=True)
     with conn:
@@ -69,7 +69,7 @@ if __name__ == "__main__":
                 for line in fileinput.input():
                     if line == "quit\n":
                         sys.exit(0)
-                    answer = generate(cursor, model, line)
+                    answer = generate(cursor, chunk_tbl, model, line)
                     print(answer)
                     print("Please ask any question.\n>> ", end="")
             except KeyboardInterrupt:

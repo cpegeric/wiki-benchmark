@@ -30,7 +30,7 @@ def embedding(cursor, src_tbl, chunk_tbl, model, fragid, nfrag):
     cursor.execute(sql)
     results = cursor.fetchall()
 
-    sql = "insert into %s (wiki_id, text, embed) values (%s)" % (chunk_tbl, "%s, %s, %s, %s")
+    sql = "insert into %s (wiki_id, text, embed) values (%s)" % (chunk_tbl, "%s, %s, %s")
     cursor.executemany(sql, results)
 
 

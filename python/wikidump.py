@@ -34,7 +34,7 @@ cast('%s' as datalink)) as f" % (streamfile, wikidump_wasm, indexfile)
 
     return datalinks
 
-def wiki2txt(wiki):
+def wiki2txt(wikitext):
     parsed = wtp.parse(wikitext)
     text = parsed.plain_text()
     return text
@@ -68,7 +68,7 @@ def wiki2docx(text, outfile):
 def insert_text(cursor, pages):
     sql = "insert into wiki_text (wiki_id, title, src) values (%s, %s, %s)"
     val = []
-    for p, f in zip(pages, outfiles):
+    for p in pages:
         val.append((p[0], p[1], p[2]))
     cursor.executemany(sql, val)
     
@@ -76,8 +76,8 @@ def insert_text(cursor, pages):
 def insert_json(cursor, pages):
     sql = "insert into wiki_json (wiki_id, src) values (%s, %s)"
     val = []
-    for p, f in zip(pages, outfiles):
-        v = {"id": p[1], "text":p[2]}
+    for p in pages:
+        v = {"id": p[1], "text": p[2]}
         val.append((p[0], json.dumps(v)))
     cursor.executemany(sql, val)
 
@@ -172,6 +172,6 @@ if __name__ == "__main__":
     mo_insert_text_json(pages)
 
     # save docx file and insert docx filepath to database
-    mo_insert_docx(data_Dir, stream_uri, pages, datalinks)
+    #mo_insert_docx(data_Dir, stream_uri, pages, datalinks)
 
 

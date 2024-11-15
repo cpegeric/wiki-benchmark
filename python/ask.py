@@ -36,7 +36,7 @@ def generate(cursor, chunk_tbl, model, line):
     results = cursor.fetchall()
     #print(results)
 
-    prompt = "Questions: %s\n Please summarize the answer below.\n" % line
+    prompt = "Questions: %s\n Please summarize the answer below in Chinese.\n" % line
     number="{}. "
     i=1
     for r in results:
@@ -65,13 +65,14 @@ if __name__ == "__main__":
     with conn:
         with conn.cursor() as cursor:
             try:
-                print("Please ask any question.\n>> ", end="")
-                for line in fileinput.input():
+                print(">> Please ask any question.\n>> ", end="")
+                for line in fileinput.input(files=('-')):
                     if line == "quit\n":
                         sys.exit(0)
                     answer = generate(cursor, chunk_tbl, model, line)
-                    print(answer)
-                    print("Please ask any question.\n>> ", end="")
+                    print(answer.replace("\\n", "\n"))
+                    print()
+                    print(">> Please ask any question.\n>> ", end="")
             except KeyboardInterrupt:
                 sys.exit(0)
 

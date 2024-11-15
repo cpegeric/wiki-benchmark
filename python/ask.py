@@ -36,7 +36,7 @@ def generate(cursor, chunk_tbl, model, line):
     results = cursor.fetchall()
     #print(results)
 
-    prompt = "Questions: %s\n Please summarize the answer below in Chinese.\n" % line
+    prompt = "Questions: %s\n Please answer in Chinese with the context below.\n" % line
     number="{}. "
     i=1
     for r in results:

@@ -6,6 +6,7 @@ import subprocess
 import wikitextparser as wtp
 from docx import Document
 import json
+import csv
 
 # installation
 # pip install wikitextparser
@@ -31,7 +32,6 @@ cast('%s' as datalink)) as f" % (streamfile, wikidump_wasm, indexfile)
     datalinks = []
     for row in results:
         datalinks.append(row[0])
-
     return datalinks
 
 def wiki2txt(wikitext):
@@ -114,6 +114,15 @@ def save_docx_index(cursor, pages, outfiles):
     cursor.executemany(sql, val)
         
 
+def save_csv(pages, data_dir, stream_uri):
+    stream_dir = Path(stream_uri).stem
+    outfile = os.path.join(data_dir, stream_dir + ".csv")
+    with open(outfile, 'w') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerows(pages)
+        print(outfile)
+    
+
 def mysql_connect():
     conn = pymysql.connect(host='localhost', port=6001, user='root', password = "111", database=dbname, autocommit=True)
     return conn
@@ -168,10 +177,12 @@ if __name__ == "__main__":
             pages = load_wikidump_pages(cursor, datalinks)
 
 
+    save_csv(pages, data_dir, stream_uri)
+
     # insert text and json into database
-    mo_insert_text_json(pages)
+    #mo_insert_text_json(pages)
 
     # save docx file and insert docx filepath to database
-    #mo_insert_docx(data_Dir, stream_uri, pages, datalinks)
+    #mo_insert_docx(data_dir, stream_uri, pages, datalinks)
 
 

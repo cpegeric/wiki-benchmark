@@ -1,0 +1,4 @@
+github.com/BehzadE/go-wikidump v0.0.6 h1:aChDT4LDE7RyyczrkRYGEkbz9FJ3M4s7eJt6VR6vzGM=
+github.com/BehzadE/go-wikidump v0.0.6/go.mod h1:huBNG4vut39stXdB/mFF+ZUGoopNbiv2z4SXXecnXLE=
+github.com/mattn/go-sqlite3 v1.14.6 h1:dNPt6NO46WmLVt2DLNpwczCmdV5boIZ6g/tlDrlRUbg=
+github.com/mattn/go-sqlite3 v1.14.6/go.mod h1:NyWgC/yNuGj7Q9rpYnZvas74GogHl5/Z4A/KQRfk6bU=

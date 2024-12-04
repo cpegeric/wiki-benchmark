@@ -6,13 +6,26 @@ import (
 	"io/fs"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 
 	"github.com/BehzadE/go-wikidump/pkg/wikidump"
 )
 
+func wiki2text(wikihome, wikifile, csvfile string) error {
+	pyscript := filepath.Join(wikihome, "python", "wiki2text.py")
+	cmd := exec.Command("python3", pyscript, wikifile, csvfile)
+
+	return cmd.Run()
+}
+
 func main() {
+	wikihome := os.Getenv("WIKI_HOME")
+	if len(wikihome) == 0 {
+		fmt.Println("WIKI_HOME not set")
+		os.Exit(1)
+	}
 
 	if len(os.Args) != 3 {
 		fmt.Println("usage: wikidump wikidump_data_dir outdir")
@@ -63,14 +76,15 @@ func main() {
 
 	for _, streamfile := range streamfiles {
 		base := filepath.Base(streamfile)
-		outfile := filepath.Join(outdir, base[0:len(base)-4]+".csv")
+		outfile := filepath.Join(outdir, base[0:len(base)-4]+".wiki")
+		csvoutfile := filepath.Join(outdir, base[0:len(base)-4]+".csv")
 
 		reader, err := d.NewStreamReader(base)
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		fmt.Print("Processing %s...\n", base)
+		fmt.Printf("Processing %s...\n", base)
 		func() {
 			f, err := os.Create(outfile)
 			if err != nil {
@@ -94,9 +108,17 @@ func main() {
 						continue
 					}
 
-					rec := []string{strconv.FormatInt(page.ID, 10), page.Title, page.Revision.Text}
+					/*
+						text, err := wiki2text(wikihome, page.Revision.Text)
+						if err != nil {
+							log.Fatal(err)
+						}
+						rec := []string{strconv.FormatInt(page.ID, 10), page.Title, text}
+					*/
 
-					err := w.Write(rec)
+					//fmt.Println(text)
+					rec := []string{strconv.FormatInt(page.ID, 10), page.Title, page.Revision.Text}
+					err = w.Write(rec)
 					if err != nil {
 						log.Fatal(err)
 					}
@@ -104,6 +126,9 @@ func main() {
 				}
 			}
 		}()
+
+		fmt.Println("finished extract wikidump and start wiki2text")
+		wiki2text(wikihome, outfile, csvoutfile)
 
 	}
 }

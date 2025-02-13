@@ -83,28 +83,31 @@ def reindex_hnsw(cursor, src_tbl, index_name):
 
 if __name__ == "__main__":
     nargv = len(sys.argv)
-    if nargv != 6:
-        print("usage: embed.py dbname src_tbl indexname dimension nitem")
+    if nargv != 7:
+        print("usage: indextest.py [build|search] dbname src_tbl indexname dimension nitem")
         print("e.g python3 indextest.py zh wiki_docx_chunk idx 3072 100000")
         sys.exit(1)
 
-    dbname = sys.argv[1]
-    src_tbl = sys.argv[2]
-    index_name = sys.argv[3]
-    dimension = int(sys.argv[4])
-    nitem = int(sys.argv[5])
+    action = sys.argv[1]
+    dbname = sys.argv[2]
+    src_tbl = sys.argv[3]
+    index_name = sys.argv[4]
+    dimension = int(sys.argv[5])
+    nitem = int(sys.argv[6])
 
     conn = pymysql.connect(host='localhost', port=6001, user='root', password = "111", database=dbname, autocommit=True)
     with conn:
         with conn.cursor() as cursor:
 
-            drop_table(cursor, src_tbl)
+            if action == "build":
+                drop_table(cursor, src_tbl)
 
-            create_table(cursor, src_tbl, dimension)
+                create_table(cursor, src_tbl, dimension)
 
-            insert_embed(cursor, src_tbl, dimension, nitem)
+                insert_embed(cursor, src_tbl, dimension, nitem)
 
-            create_hnsw_index(cursor, src_tbl, index_name)
+                create_hnsw_index(cursor, src_tbl, index_name)
 
-            select_embed(cursor, src_tbl, dimension)
+            else:
+                select_embed(cursor, src_tbl, dimension)
 

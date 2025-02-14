@@ -61,8 +61,8 @@ def insert_embed(cursor, src_tbl, dim, nitem, dataset):
 # For datasets with more than one million rows, use lists = sqrt(rows).
 # It is generally advisable to have at least 10 clusters.
 # The recommended value for the probes parameter is probes = sqrt(lists).
-def create_ivfflat_index(cursor, src_tbl, index_name):
-    sql = "create index %s using ivfflat on %s(embed) lists=500 op_type \"vector_l2_ops\"" % (index_name, src_tbl)
+def create_ivfflat_index(cursor, src_tbl, index_name, lists):
+    sql = "create index %s using ivfflat on %s(embed) lists=%s op_type \"vector_l2_ops\"" % (index_name, src_tbl, lists)
     print(sql)
     start = timer()
     cursor.execute(sql)
@@ -165,7 +165,12 @@ if __name__ == "__main__":
                 if optype == "hnsw":
                     create_hnsw_index(cursor, src_tbl, index_name)
                 else:
-                    create_ivfflat_index(cursor, src_tbl, index_name)
+                    lists = 0
+                    if nitem < 1000000:
+                        lists = int(nitem/1000)
+                    else:
+                        lists = int(math.sqrt(nitem))
+                    create_ivfflat_index(cursor, src_tbl, index_name, lists)
 
                 recall_run(dbname, src_tbl, dataset)
                 

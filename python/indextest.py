@@ -6,6 +6,8 @@ import subprocess
 import wikitextparser as wtp
 from docx import Document
 import numpy as np
+import concurrent.futures
+from timeit import default_timer as timer
 
 # installation
 # pip install wikitextparser
@@ -27,6 +29,8 @@ def create_table(cursor, tblname, dim):
     sql = "set experimental_hnsw_index = 1"
     print(sql)
     cursor.execute(sql)
+    sql = "set experimental_ivf_index = 1"
+    cursor.execute(sql)
 
     sql = "create table %s (id bigint primary key auto_increment, embed vecf32(%d))" % (tblname, dim)
     print(sql)
@@ -45,19 +49,35 @@ def gen_embed(dim, nitem):
 
     return res
 
-def insert_embed(cursor, src_tbl, dim, nitem):
-
-    res = gen_embed(dim, nitem)
+def insert_embed(cursor, src_tbl, dim, nitem, dataset):
 
     sql = "insert into %s (id, embed) values (%s)" % (src_tbl, "%s, %s")
     print(sql)
     #print(res)
-    cursor.executemany(sql, res)
+    cursor.executemany(sql, dataset)
+
+
+# For datasets with less than one million rows, use lists = rows / 1000.
+# For datasets with more than one million rows, use lists = sqrt(rows).
+# It is generally advisable to have at least 10 clusters.
+# The recommended value for the probes parameter is probes = sqrt(lists).
+def create_ivfflat_index(cursor, src_tbl, index_name):
+    sql = "create index %s using ivfflat on %s(embed) lists=500 op_type \"vector_l2_ops\"" % (index_name, src_tbl)
+    print(sql)
+    start = timer()
+    cursor.execute(sql)
+    end = timer()
+    print("create index time = ", end-start, " sec")
+
+
 
 def create_hnsw_index(cursor, src_tbl, index_name):
-    sql = "create index %s using hnsw on %s(embed) op_type \"vector_l2_ops\"" % (index_name, src_tbl)
+    sql = "create index %s using hnsw on %s(embed) m 48 op_type \"vector_l2_ops\"" % (index_name, src_tbl)
     print(sql)
+    start = timer()
     cursor.execute(sql)
+    end = timer()
+    print("create index time = ", end-start, " sec")
 
 
 def select_embed(cursor, src_tbl, dim):
@@ -81,10 +101,43 @@ def reindex_hnsw(cursor, src_tbl, index_name):
     cursor.execute(sql)
 
 
+def thread_run(dbname, src_tbl, dataset, segid, nseg):
+    recall = 0
+    conn = pymysql.connect(host='localhost', port=6001, user='root', password = "111", database=dbname, autocommit=True)
+    with conn:
+        i = 0
+        for row in dataset:
+            if i % nseg == segid:
+                rid = row[0]
+                v = row[1]
+                sql = "select id from %s order by l2_distance(embed, '%s') asc limit 1" % (src_tbl, v)
+                cursor.execute(sql)
+                res = cursor.fetchall()
+                resid = res[0][0]
+                if resid == rid:
+                    recall += 1
+            i += 1
+    return recall
+
+
+def recall_run(dbname, src_tbl, dataset):
+    nthread = 8
+    total_recall = 0
+    start = timer()
+    with concurrent.futures.ThreadPoolExecutor(max_workers=nthread) as executor:
+        for index in range(nthread):
+            future = executor.submit(thread_run, dbname, src_tbl, dataset, index, nthread)
+            total_recall += future.result()
+
+    end = timer()
+    rate = total_recall / len(dataset)
+    print("recall rate = ", rate, ", elapsed = ", end-start, " sec, ", (end-start)/len(dataset)*1000, " ms/row")
+
+
 if __name__ == "__main__":
     nargv = len(sys.argv)
-    if nargv != 7:
-        print("usage: indextest.py [build|search] dbname src_tbl indexname dimension nitem")
+    if nargv != 8:
+        print("usage: indextest.py [build|search] dbname src_tbl indexname dimension nitem [hnsw|ivf]")
         print("e.g python3 indextest.py zh wiki_docx_chunk idx 3072 100000")
         sys.exit(1)
 
@@ -94,6 +147,7 @@ if __name__ == "__main__":
     index_name = sys.argv[4]
     dimension = int(sys.argv[5])
     nitem = int(sys.argv[6])
+    optype = sys.argv[7]
 
     conn = pymysql.connect(host='localhost', port=6001, user='root', password = "111", database=dbname, autocommit=True)
     with conn:
@@ -104,10 +158,17 @@ if __name__ == "__main__":
 
                 create_table(cursor, src_tbl, dimension)
 
-                insert_embed(cursor, src_tbl, dimension, nitem)
+                dataset = gen_embed(dimension, nitem)
 
-                create_hnsw_index(cursor, src_tbl, index_name)
+                insert_embed(cursor, src_tbl, dimension, nitem, dataset)
 
+                if optype == "hnsw":
+                    create_hnsw_index(cursor, src_tbl, index_name)
+                else:
+                    create_ivfflat_index(cursor, src_tbl, index_name)
+
+                recall_run(dbname, src_tbl, dataset)
+                
             else:
                 select_embed(cursor, src_tbl, dimension)
 

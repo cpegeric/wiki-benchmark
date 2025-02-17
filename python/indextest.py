@@ -38,10 +38,10 @@ def create_table(cursor, tblname, dim):
 
 
 
-def gen_embed(dim, nitem):
-    array = np.random.rand(nitem, dim)
+def gen_embed(rs, dim, nitem, start):
+    array = rs.rand(nitem, dim)
     res = []
-    i = 0
+    i = start
     for a in array:
         s = '[' + ','.join(str(x) for x in a) + ']'
         res.append((i, s))
@@ -49,12 +49,20 @@ def gen_embed(dim, nitem):
 
     return res
 
-def insert_embed(cursor, src_tbl, dim, nitem, dataset):
+def insert_embed(cursor, rs, src_tbl, dim, nitem):
+    batchsz = 1000
+    n = 0
+    while n < nitem:
+        if n + batchsz > nitem:
+            batchsz = nitem - n
+        dataset = gen_embed(rs, dim, batchsz, n)
 
-    sql = "insert into %s (id, embed) values (%s)" % (src_tbl, "%s, %s")
-    print(sql)
-    #print(res)
-    cursor.executemany(sql, dataset)
+        sql = "insert into %s (id, embed) values (%s)" % (src_tbl, "%s, %s")
+        print(sql)
+        #print(res)
+        cursor.executemany(sql, dataset)
+
+        n += batchsz
 
 
 # For datasets with less than one million rows, use lists = rows / 1000.
@@ -108,37 +116,47 @@ def reindex_hnsw(cursor, src_tbl, index_name):
     cursor.execute(sql)
 
 
-def thread_run(dbname, src_tbl, dataset, segid, nseg):
+def thread_run(dbname, src_tbl, dim, nitem, segid, nseg):
+    rs = np.random.RandomState(99)
     recall = 0
     conn = pymysql.connect(host='localhost', port=6001, user='root', password = "111", database=dbname, autocommit=True)
     with conn:
         i = 0
-        for row in dataset:
-            if i % nseg == segid:
-                rid = row[0]
-                v = row[1]
-                sql = "select id from %s order by l2_distance(embed, '%s') asc limit 1" % (src_tbl, v)
-                cursor.execute(sql)
-                res = cursor.fetchall()
-                resid = res[0][0]
-                if resid == rid:
-                    recall += 1
-            i += 1
+        batchsz = 1000
+        n = 0
+        while n < nitem:
+            if n + batchsz > nitem:
+                batchsz = nitem - n
+            dataset = gen_embed(rs, dim, batchsz, n)
+            for row in dataset:
+                if i % nseg == segid:
+                    rid = row[0]
+                    v = row[1]
+                    sql = "select id from %s order by l2_distance(embed, '%s') asc limit 1" % (src_tbl, v)
+                    cursor.execute(sql)
+                    res = cursor.fetchall()
+                    resid = res[0][0]
+                    if resid == rid:
+                        recall += 1
+                i += 1
+
+            n += batchsz
+
     return recall
 
 
-def recall_run(dbname, src_tbl, dataset):
+def recall_run(dbname, src_tbl, dim, nitem):
     nthread = 8
     total_recall = 0
     start = timer()
     with concurrent.futures.ThreadPoolExecutor(max_workers=nthread) as executor:
         for index in range(nthread):
-            future = executor.submit(thread_run, dbname, src_tbl, dataset, index, nthread)
+            future = executor.submit(thread_run, dbname, src_tbl, dim, nitem, index, nthread)
             total_recall += future.result()
 
     end = timer()
-    rate = total_recall / len(dataset)
-    print("recall rate = ", rate, ", elapsed = ", end-start, " sec, ", (end-start)/len(dataset)*1000, " ms/row")
+    rate = total_recall / nitem
+    print("recall rate = ", rate, ", elapsed = ", end-start, " sec, ", (end-start)/nitem*1000, " ms/row")
 
 
 if __name__ == "__main__":
@@ -165,17 +183,18 @@ if __name__ == "__main__":
 
                 create_table(cursor, src_tbl, dimension)
 
-                dataset = gen_embed(dimension, nitem)
-
-                insert_embed(cursor, src_tbl, dimension, nitem, dataset)
+                rs = np.random.RandomState(99)
+                insert_embed(cursor, rs, src_tbl, dimension, nitem)
 
                 if optype == "hnsw":
                     create_hnsw_index(cursor, src_tbl, index_name)
                 else:
                     create_ivfflat_index(cursor, src_tbl, index_name, nitem)
 
-                recall_run(dbname, src_tbl, dataset)
-                
+                #rs = np.random.RandomState(99)
+                #recall_run(rs, dbname, src_tbl, dim, nitem)
+            elif action == "recall":
+                recall_run(dbname, src_tbl, dimension, nitem)
             else:
                 select_embed(cursor, src_tbl, dimension)
 

@@ -116,8 +116,8 @@ def reindex_hnsw(cursor, src_tbl, index_name):
     cursor.execute(sql)
 
 
-def thread_run(dbname, src_tbl, dim, nitem, segid, nseg):
-    rs = np.random.RandomState(99)
+def thread_run(dbname, src_tbl, dim, nitem, segid, nseg, seek):
+    rs = np.random.RandomState(seek)
     recall = 0
     conn = pymysql.connect(host='localhost', port=6001, user='root', password = "111", database=dbname, autocommit=True)
     with conn:
@@ -145,13 +145,13 @@ def thread_run(dbname, src_tbl, dim, nitem, segid, nseg):
     return recall
 
 
-def recall_run(dbname, src_tbl, dim, nitem):
+def recall_run(dbname, src_tbl, dim, nitem, seek):
     nthread = 8
     total_recall = 0
     start = timer()
     with concurrent.futures.ThreadPoolExecutor(max_workers=nthread) as executor:
         for index in range(nthread):
-            future = executor.submit(thread_run, dbname, src_tbl, dim, nitem, index, nthread)
+            future = executor.submit(thread_run, dbname, src_tbl, dim, nitem, index, nthread, seek)
             total_recall += future.result()
 
     end = timer()
@@ -174,6 +174,7 @@ if __name__ == "__main__":
     nitem = int(sys.argv[6])
     optype = sys.argv[7]
 
+    seek = 99
     conn = pymysql.connect(host='localhost', port=6001, user='root', password = "111", database=dbname, autocommit=True)
     with conn:
         with conn.cursor() as cursor:
@@ -183,7 +184,7 @@ if __name__ == "__main__":
 
                 create_table(cursor, src_tbl, dimension)
 
-                rs = np.random.RandomState(99)
+                rs = np.random.RandomState(seek)
                 insert_embed(cursor, rs, src_tbl, dimension, nitem)
 
                 if optype == "hnsw":
@@ -191,10 +192,8 @@ if __name__ == "__main__":
                 else:
                     create_ivfflat_index(cursor, src_tbl, index_name, nitem)
 
-                #rs = np.random.RandomState(99)
-                #recall_run(rs, dbname, src_tbl, dim, nitem)
             elif action == "recall":
-                recall_run(dbname, src_tbl, dimension, nitem)
+                recall_run(dbname, src_tbl, dimension, nitem, seek)
             else:
                 select_embed(cursor, src_tbl, dimension)
 

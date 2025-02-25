@@ -18,12 +18,28 @@ if wikihome is None:
     print("WIKI_HOME environment variable not found")
     sys.exit(10)
 
+def set_env(cursor):
+    # hnsw table
+    sql = "set experimental_hnsw_index = 1"
+    print(sql)
+    cursor.execute(sql)
+    sql = "set experimental_ivf_index = 1"
+    print(sql)
+    cursor.execute(sql)
+    sql = "set @probe_limit = 80"
+    print(sql)
+    cursor.execute(sql)
+
+
+
 def create_table(cursor, tblname, dim):
     # hnsw table
     sql = "set experimental_hnsw_index = 1"
     print(sql)
     cursor.execute(sql)
     sql = "set experimental_ivf_index = 1"
+    cursor.execute(sql)
+    sql = "set @probe_limit = 20"
     cursor.execute(sql)
 
     sql = "create table %s (id bigint primary key auto_increment, embed vecf32(%d))" % (tblname, dim)
@@ -43,7 +59,7 @@ def gen_embed(rs, dim, nitem, start):
 
     return res
 
-def insert_embed(cursor, rs, src_tbl, dim, nitem, seek):
+def insert_embed(cursor, src_tbl, dim, nitem, seek):
     rs = np.random.RandomState(seek)
     batchsz = 1000
     n = 0
@@ -116,26 +132,28 @@ def thread_run(host, dbname, src_tbl, dim, nitem, segid, nseg, seek):
     recall = 0
     conn = pymysql.connect(host=host, port=6001, user='root', password = "111", database=dbname, autocommit=True)
     with conn:
-        i = 0
-        batchsz = 1000
-        n = 0
-        while n < nitem:
-            if n + batchsz > nitem:
-                batchsz = nitem - n
-            dataset = gen_embed(rs, dim, batchsz, n)
-            for row in dataset:
-                if i % nseg == segid:
-                    rid = row[0]
-                    v = row[1]
-                    sql = "select id from %s order by l2_distance(embed, '%s') asc limit 1" % (src_tbl, v)
-                    cursor.execute(sql)
-                    res = cursor.fetchall()
-                    resid = res[0][0]
-                    if resid == rid:
-                        recall += 1
-                i += 1
+        with conn.cursor() as cursor:
+            set_env(cursor)
+            i = 0
+            batchsz = 1000
+            n = 0
+            while n < nitem:
+                if n + batchsz > nitem:
+                    batchsz = nitem - n
+                dataset = gen_embed(rs, dim, batchsz, n)
+                for row in dataset:
+                    if i % nseg == segid:
+                        rid = row[0]
+                        v = row[1]
+                        sql = "select id from %s order by l2_distance(embed, '%s') asc limit 1" % (src_tbl, v)
+                        cursor.execute(sql)
+                        res = cursor.fetchall()
+                        resid = res[0][0]
+                        if resid == rid:
+                            recall += 1
+                    i += 1
 
-            n += batchsz
+                n += batchsz
 
     return recall
 
@@ -146,6 +164,7 @@ def recall_run(host, dbname, src_tbl, dim, nitem, seek, nthread):
     with concurrent.futures.ThreadPoolExecutor(max_workers=nthread) as executor:
         for index in range(nthread):
             future = executor.submit(thread_run, host, dbname, src_tbl, dim, nitem, index, nthread, seek)
+        for index in range(nthread):
             total_recall += future.result()
 
     end = timer()
@@ -180,7 +199,7 @@ if __name__ == "__main__":
 
                 create_table(cursor, src_tbl, dimension)
 
-                insert_embed(cursor, rs, src_tbl, dimension, nitem, seek)
+                insert_embed(cursor, src_tbl, dimension, nitem, seek)
 
                 if optype == "hnsw":
                     create_hnsw_index(cursor, src_tbl, index_name)

@@ -18,12 +18,6 @@ if wikihome is None:
     print("WIKI_HOME environment variable not found")
     sys.exit(10)
 
-
-wikidump_wasm=Path(os.path.join(wikihome, "wasm/wikidump.wasm")).as_uri()
-ollama_wasm=Path(os.path.join(wikihome, "wasm/ollama.wasm")).as_uri()
-
-model = "llama3.2"
-
 def create_table(cursor, tblname, dim):
     # hnsw table
     sql = "set experimental_hnsw_index = 1"
@@ -49,7 +43,8 @@ def gen_embed(rs, dim, nitem, start):
 
     return res
 
-def insert_embed(cursor, rs, src_tbl, dim, nitem):
+def insert_embed(cursor, rs, src_tbl, dim, nitem, seek):
+    rs = np.random.RandomState(seek)
     batchsz = 1000
     n = 0
     while n < nitem:
@@ -116,10 +111,10 @@ def reindex_hnsw(cursor, src_tbl, index_name):
     cursor.execute(sql)
 
 
-def thread_run(dbname, src_tbl, dim, nitem, segid, nseg, seek):
+def thread_run(host, dbname, src_tbl, dim, nitem, segid, nseg, seek):
     rs = np.random.RandomState(seek)
     recall = 0
-    conn = pymysql.connect(host='localhost', port=6001, user='root', password = "111", database=dbname, autocommit=True)
+    conn = pymysql.connect(host=host, port=6001, user='root', password = "111", database=dbname, autocommit=True)
     with conn:
         i = 0
         batchsz = 1000
@@ -145,37 +140,38 @@ def thread_run(dbname, src_tbl, dim, nitem, segid, nseg, seek):
     return recall
 
 
-def recall_run(dbname, src_tbl, dim, nitem, seek):
-    nthread = 8
+def recall_run(host, dbname, src_tbl, dim, nitem, seek, nthread):
     total_recall = 0
     start = timer()
     with concurrent.futures.ThreadPoolExecutor(max_workers=nthread) as executor:
         for index in range(nthread):
-            future = executor.submit(thread_run, dbname, src_tbl, dim, nitem, index, nthread, seek)
+            future = executor.submit(thread_run, host, dbname, src_tbl, dim, nitem, index, nthread, seek)
             total_recall += future.result()
 
     end = timer()
     rate = total_recall / nitem
-    print("recall rate = ", rate, ", elapsed = ", end-start, " sec, ", (end-start)/nitem*1000, " ms/row")
+    print("recall rate = ", rate, ", elapsed = ", end-start, " sec, ", (end-start)/nitem*1000, " ms/row, qps = ", nitem/(end-start))
 
 
 if __name__ == "__main__":
     nargv = len(sys.argv)
-    if nargv != 8:
-        print("usage: indextest.py [build|search] dbname src_tbl indexname dimension nitem [hnsw|ivf]")
-        print("e.g python3 indextest.py zh wiki_docx_chunk idx 3072 100000")
+    if nargv != 9:
+        print("usage: indextest.py [build|recall|search] dbname src_tbl indexname dimension nitem [hnsw|ivf]")
+        print("e.g python3 indextest.py [build|recall|search] localhost zh srctbl idx 3072 100000 hnsw")
         sys.exit(1)
 
     action = sys.argv[1]
-    dbname = sys.argv[2]
-    src_tbl = sys.argv[3]
-    index_name = sys.argv[4]
-    dimension = int(sys.argv[5])
-    nitem = int(sys.argv[6])
-    optype = sys.argv[7]
+    host = sys.argv[2]
+    dbname = sys.argv[3]
+    src_tbl = sys.argv[4]
+    index_name = sys.argv[5]
+    dimension = int(sys.argv[6])
+    nitem = int(sys.argv[7])
+    optype = sys.argv[8]
 
+    # fix the seek to always generate the same sequence
     seek = 99
-    conn = pymysql.connect(host='localhost', port=6001, user='root', password = "111", database=dbname, autocommit=True)
+    conn = pymysql.connect(host=host, port=6001, user='root', password = "111", database=dbname, autocommit=True)
     with conn:
         with conn.cursor() as cursor:
 
@@ -184,8 +180,7 @@ if __name__ == "__main__":
 
                 create_table(cursor, src_tbl, dimension)
 
-                rs = np.random.RandomState(seek)
-                insert_embed(cursor, rs, src_tbl, dimension, nitem)
+                insert_embed(cursor, rs, src_tbl, dimension, nitem, seek)
 
                 if optype == "hnsw":
                     create_hnsw_index(cursor, src_tbl, index_name)
@@ -193,7 +188,9 @@ if __name__ == "__main__":
                     create_ivfflat_index(cursor, src_tbl, index_name, nitem)
 
             elif action == "recall":
-                recall_run(dbname, src_tbl, dimension, nitem, seek)
+                # concurrency thread count
+                nthread = 8
+                recall_run(host, dbname, src_tbl, dimension, nitem, seek, nthread)
             else:
                 select_embed(cursor, src_tbl, dimension)
 

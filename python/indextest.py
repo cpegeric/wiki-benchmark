@@ -21,12 +21,12 @@ if wikihome is None:
 def set_env(cursor):
     # hnsw table
     sql = "set experimental_hnsw_index = 1"
-    print(sql)
+    #print(sql)
     cursor.execute(sql)
     sql = "set experimental_ivf_index = 1"
-    print(sql)
+    #print(sql)
     cursor.execute(sql)
-    sql = "set @probe_limit = 80"
+    sql = "set @probe_limit = 8"
     print(sql)
     cursor.execute(sql)
 
@@ -35,11 +35,13 @@ def set_env(cursor):
 def create_table(cursor, tblname, dim):
     # hnsw table
     sql = "set experimental_hnsw_index = 1"
-    print(sql)
+    #print(sql)
     cursor.execute(sql)
     sql = "set experimental_ivf_index = 1"
     cursor.execute(sql)
-    sql = "set @probe_limit = 20"
+    sql = "set @probe_limit = 10"
+    cursor.execute(sql)
+    sql = "set ivf_threads_build = 0"
     cursor.execute(sql)
 
     sql = "create table %s (id bigint primary key auto_increment, embed vecf32(%d))" % (tblname, dim)

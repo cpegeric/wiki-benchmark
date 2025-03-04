@@ -7,6 +7,7 @@ import wikitextparser as wtp
 from docx import Document
 import numpy as np
 import concurrent.futures
+import math
 from timeit import default_timer as timer
 
 # installation
@@ -44,8 +45,8 @@ def create_table(cursor, tblname, dim):
     sql = "set ivf_threads_build = 0"
     cursor.execute(sql)
 
-    #sql = "create table %s (id bigint primary key auto_increment, embed vecf32(%d))" % (tblname, dim)
-    sql = "create table %s (id bigint primary key auto_increment, embed vecf64(%d))" % (tblname, dim)
+    sql = "create table %s (id bigint primary key auto_increment, embed vecf32(%d))" % (tblname, dim)
+    #sql = "create table %s (id bigint primary key auto_increment, embed vecf64(%d))" % (tblname, dim)
     print(sql)
     cursor.execute(sql)
 
@@ -61,10 +62,13 @@ def normalize(array):
     return array
 
 def gen_embed(rs, dim, nitem, start):
-    array = normalize(rs.rand(nitem, dim))
+    array = rs.rand(nitem, dim)
+    normalized = []
+    for x in array:
+        normalized.append(normalize(x))
     res = []
     i = start
-    for a in array:
+    for a in normalized:
         s = '[' + ','.join(str(x) for x in a) + ']'
         res.append((i, s))
         i+=1
@@ -100,7 +104,7 @@ def create_ivfflat_index(cursor, src_tbl, index_name, nitem):
         lists = int(math.sqrt(nitem))
     if lists < 10:
         lists = 10
-    sql = "create index %s using ivfflat on %s(embed) lists=%s op_type \"vector_l2_ops\"" % (index_name, src_tbl, lists)
+    sql = "create index %s using ivfflat on %s(embed) lists=%s op_type \"vector_ip_ops\"" % (index_name, src_tbl, lists)
     print(sql)
     start = timer()
     cursor.execute(sql)
@@ -110,7 +114,7 @@ def create_ivfflat_index(cursor, src_tbl, index_name, nitem):
 
 
 def create_hnsw_index(cursor, src_tbl, index_name):
-    sql = "create index %s using hnsw on %s(embed) m 48 op_type \"vector_l2_ops\"" % (index_name, src_tbl)
+    sql = "create index %s using hnsw on %s(embed) m 48 op_type \"vector_cosine_ops\"" % (index_name, src_tbl)
     print(sql)
     start = timer()
     cursor.execute(sql)
@@ -121,7 +125,7 @@ def create_hnsw_index(cursor, src_tbl, index_name):
 def select_embed(cursor, src_tbl, dim):
     array = np.random.rand(1, dim)
     s = '[' + ','.join(str(x) for x in array[0]) + ']'
-    sql = "select id from %s order by l2_distance(embed, '%s') asc limit 1" % (src_tbl, s)
+    sql = "select id from %s order by cosine_distance(embed, '%s') asc limit 1" % (src_tbl, s)
     print(sql)
     cursor.execute(sql)
     res = cursor.fetchall()
@@ -157,7 +161,7 @@ def thread_run(host, dbname, src_tbl, dim, nitem, segid, nseg, seek):
                     if i % nseg == segid:
                         rid = row[0]
                         v = row[1]
-                        sql = "select id from %s order by l2_distance(embed, '%s') asc limit 1" % (src_tbl, v)
+                        sql = "select id from %s order by cosine_distance(embed, '%s') asc limit 1" % (src_tbl, v)
                         cursor.execute(sql)
                         res = cursor.fetchall()
                         resid = res[0][0]

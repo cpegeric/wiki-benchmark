@@ -26,7 +26,7 @@ def set_env(cursor):
     sql = "set experimental_ivf_index = 1"
     #print(sql)
     cursor.execute(sql)
-    sql = "set @probe_limit = 8"
+    sql = "set @probe_limit = 5"
     print(sql)
     cursor.execute(sql)
 
@@ -44,14 +44,24 @@ def create_table(cursor, tblname, dim):
     sql = "set ivf_threads_build = 0"
     cursor.execute(sql)
 
-    sql = "create table %s (id bigint primary key auto_increment, embed vecf32(%d))" % (tblname, dim)
+    #sql = "create table %s (id bigint primary key auto_increment, embed vecf32(%d))" % (tblname, dim)
+    sql = "create table %s (id bigint primary key auto_increment, embed vecf64(%d))" % (tblname, dim)
     print(sql)
     cursor.execute(sql)
 
 
+def normalize(array):
+    sum = 0
+    for x in array:
+        sum += x*x
+    sum = math.sqrt(sum)
+    # normalize
+    for i in range(len(array)):
+        array[i] = array[i] / sum
+    return array
 
 def gen_embed(rs, dim, nitem, start):
-    array = rs.rand(nitem, dim)
+    array = normalize(rs.rand(nitem, dim))
     res = []
     i = start
     for a in array:

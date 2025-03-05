@@ -15,6 +15,10 @@ from timeit import default_timer as timer
 # pip install python-docx
 
 wikihome = os.getenv("WIKI_HOME")
+
+optype2distfn = {'vector_l2_ops':'l2_distance', 'vector_cosine_ops':'cosine_distance', 'vector_ip_ops':'inner_product'}
+
+
 if wikihome is None:
     print("WIKI_HOME environment variable not found")
     sys.exit(10)
@@ -28,7 +32,7 @@ def set_env(cursor):
     #print(sql)
     cursor.execute(sql)
     sql = "set @probe_limit = 5"
-    print(sql)
+    #print(sql)
     cursor.execute(sql)
 
 
@@ -85,9 +89,10 @@ def insert_embed(cursor, src_tbl, dim, nitem, seek):
         dataset = gen_embed(rs, dim, batchsz, n)
 
         sql = "insert into %s (id, embed) values (%s)" % (src_tbl, "%s, %s")
-        print(sql)
+        #print(sql)
         #print(res)
         cursor.executemany(sql, dataset)
+        print(batchsz, "rows inserted")
 
         n += batchsz
 
@@ -96,7 +101,7 @@ def insert_embed(cursor, src_tbl, dim, nitem, seek):
 # For datasets with more than one million rows, use lists = sqrt(rows).
 # It is generally advisable to have at least 10 clusters.
 # The recommended value for the probes parameter is probes = sqrt(lists).
-def create_ivfflat_index(cursor, src_tbl, index_name, nitem):
+def create_ivfflat_index(cursor, src_tbl, index_name, optype, nitem):
     lists = 0
     if nitem < 1000000:
         lists = int(nitem/1000)
@@ -104,7 +109,7 @@ def create_ivfflat_index(cursor, src_tbl, index_name, nitem):
         lists = int(math.sqrt(nitem))
     if lists < 10:
         lists = 10
-    sql = "create index %s using ivfflat on %s(embed) lists=%s op_type \"vector_ip_ops\"" % (index_name, src_tbl, lists)
+    sql = "create index %s using ivfflat on %s(embed) lists=%s op_type \"%s\"" % (index_name, src_tbl, lists, optype)
     print(sql)
     start = timer()
     cursor.execute(sql)
@@ -113,8 +118,8 @@ def create_ivfflat_index(cursor, src_tbl, index_name, nitem):
 
 
 
-def create_hnsw_index(cursor, src_tbl, index_name):
-    sql = "create index %s using hnsw on %s(embed) m 48 op_type \"vector_cosine_ops\"" % (index_name, src_tbl)
+def create_hnsw_index(cursor, src_tbl, index_name, optype):
+    sql = "create index %s using hnsw on %s(embed) m 48 op_type \"%s\"" % (index_name, src_tbl, optype)
     print(sql)
     start = timer()
     cursor.execute(sql)
@@ -122,10 +127,10 @@ def create_hnsw_index(cursor, src_tbl, index_name):
     print("create index time = ", end-start, " sec")
 
 
-def select_embed(cursor, src_tbl, dim):
+def select_embed(cursor, src_tbl, dim, optype):
     array = np.random.rand(1, dim)
     s = '[' + ','.join(str(x) for x in array[0]) + ']'
-    sql = "select id from %s order by cosine_distance(embed, '%s') asc limit 1" % (src_tbl, s)
+    sql = "select id from %s order by %s(embed, '%s') asc limit 1" % (src_tbl, optype2distfn[optype], s)
     print(sql)
     cursor.execute(sql)
     res = cursor.fetchall()
@@ -143,7 +148,7 @@ def reindex_hnsw(cursor, src_tbl, index_name):
     cursor.execute(sql)
 
 
-def thread_run(host, dbname, src_tbl, dim, nitem, segid, nseg, seek):
+def thread_run(host, dbname, src_tbl, dim, nitem, segid, nseg, seek, optype):
     rs = np.random.RandomState(seek)
     recall = 0
     conn = pymysql.connect(host=host, port=6001, user='root', password = "111", database=dbname, autocommit=True)
@@ -161,7 +166,7 @@ def thread_run(host, dbname, src_tbl, dim, nitem, segid, nseg, seek):
                     if i % nseg == segid:
                         rid = row[0]
                         v = row[1]
-                        sql = "select id from %s order by cosine_distance(embed, '%s') asc limit 1" % (src_tbl, v)
+                        sql = "select id from %s order by %s(embed, '%s') asc limit 1" % (src_tbl, optype2distfn[optype], v)
                         cursor.execute(sql)
                         res = cursor.fetchall()
                         resid = res[0][0]
@@ -174,12 +179,12 @@ def thread_run(host, dbname, src_tbl, dim, nitem, segid, nseg, seek):
     return recall
 
 
-def recall_run(host, dbname, src_tbl, dim, nitem, seek, nthread):
+def recall_run(host, dbname, src_tbl, dim, nitem, seek, nthread, optype):
     total_recall = 0
     start = timer()
     with concurrent.futures.ThreadPoolExecutor(max_workers=nthread) as executor:
         for index in range(nthread):
-            future = executor.submit(thread_run, host, dbname, src_tbl, dim, nitem, index, nthread, seek)
+            future = executor.submit(thread_run, host, dbname, src_tbl, dim, nitem, index, nthread, seek, optype)
         for index in range(nthread):
             total_recall += future.result()
 
@@ -190,9 +195,9 @@ def recall_run(host, dbname, src_tbl, dim, nitem, seek, nthread):
 
 if __name__ == "__main__":
     nargv = len(sys.argv)
-    if nargv != 9:
-        print("usage: indextest.py [build|recall|search] dbname src_tbl indexname dimension nitem [hnsw|ivf]")
-        print("e.g python3 indextest.py [build|recall|search] localhost zh srctbl idx 3072 100000 hnsw")
+    if nargv != 10:
+        print("usage: indextest.py [build|recall|search] host dbname src_tbl indexname optype dimension nitem [hnsw|ivf]")
+        print("e.g python3 indextest.py [build|recall|search] localhost zh srctbl idx [vector_l2_ops|vector_cosine_ops|vector_ip_ops] 3072 100000 hnsw")
         sys.exit(1)
 
     action = sys.argv[1]
@@ -200,9 +205,16 @@ if __name__ == "__main__":
     dbname = sys.argv[3]
     src_tbl = sys.argv[4]
     index_name = sys.argv[5]
-    dimension = int(sys.argv[6])
-    nitem = int(sys.argv[7])
-    optype = sys.argv[8]
+    optype = sys.argv[6]
+    dimension = int(sys.argv[7])
+    nitem = int(sys.argv[8])
+    algo = sys.argv[9]
+
+    try:
+        ret = optype2distfn[optype]
+    except KeyError:
+        print("unknown optyp", optype)
+        sys.exit(1)
 
     # fix the seek to always generate the same sequence
     seek = 99
@@ -217,15 +229,15 @@ if __name__ == "__main__":
 
                 insert_embed(cursor, src_tbl, dimension, nitem, seek)
 
-                if optype == "hnsw":
-                    create_hnsw_index(cursor, src_tbl, index_name)
+                if algo == "hnsw":
+                    create_hnsw_index(cursor, src_tbl, index_name, optype)
                 else:
-                    create_ivfflat_index(cursor, src_tbl, index_name, nitem)
+                    create_ivfflat_index(cursor, src_tbl, index_name, optype, nitem)
 
             elif action == "recall":
                 # concurrency thread count
                 nthread = 8
-                recall_run(host, dbname, src_tbl, dimension, nitem, seek, nthread)
+                recall_run(host, dbname, src_tbl, dimension, nitem, seek, nthread, optype)
             else:
-                select_embed(cursor, src_tbl, dimension)
+                select_embed(cursor, src_tbl, dimension, optype)
 

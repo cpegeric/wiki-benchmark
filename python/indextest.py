@@ -65,28 +65,31 @@ def normalize(array):
         array[i] = array[i] / sum
     return array
 
-def gen_embed(rs, dim, nitem, start):
+def gen_embed(rs, dim, nitem, start, optype):
     array = rs.rand(nitem, dim)
+    #print(array)
     normalized = []
     for x in array:
         normalized.append(normalize(x))
+    array = normalized
+    #print(array)
     res = []
     i = start
-    for a in normalized:
+    for a in array:
         s = '[' + ','.join(str(x) for x in a) + ']'
         res.append((i, s))
         i+=1
 
     return res
 
-def insert_embed(cursor, src_tbl, dim, nitem, seek):
+def insert_embed(cursor, src_tbl, dim, nitem, seek, optype):
     rs = np.random.RandomState(seek)
     batchsz = 1000
     n = 0
     while n < nitem:
         if n + batchsz > nitem:
             batchsz = nitem - n
-        dataset = gen_embed(rs, dim, batchsz, n)
+        dataset = gen_embed(rs, dim, batchsz, n, optype)
 
         sql = "insert into %s (id, embed) values (%s)" % (src_tbl, "%s, %s")
         #print(sql)
@@ -148,43 +151,40 @@ def reindex_hnsw(cursor, src_tbl, index_name):
     cursor.execute(sql)
 
 
-def thread_run(host, dbname, src_tbl, dim, nitem, segid, nseg, seek, optype):
-    rs = np.random.RandomState(seek)
+def thread_run(host, dbname, src_tbl, dim, nitem, segid, nseg, seek, optype, dataset):
     recall = 0
     conn = pymysql.connect(host=host, port=6001, user='root', password = "111", database=dbname, autocommit=True)
     with conn:
         with conn.cursor() as cursor:
             set_env(cursor)
             i = 0
-            batchsz = 1000
-            n = 0
-            while n < nitem:
-                if n + batchsz > nitem:
-                    batchsz = nitem - n
-                dataset = gen_embed(rs, dim, batchsz, n)
-                for row in dataset:
-                    if i % nseg == segid:
-                        rid = row[0]
-                        v = row[1]
-                        sql = "select id from %s order by %s(embed, '%s') asc limit 1" % (src_tbl, optype2distfn[optype], v)
-                        cursor.execute(sql)
-                        res = cursor.fetchall()
-                        resid = res[0][0]
-                        if resid == rid:
-                            recall += 1
-                    i += 1
-
-                n += batchsz
+            for row in dataset:
+                if i % nseg == segid:
+                    rid = row[0]
+                    v = row[1]
+                    sql = "select id from %s order by %s(embed, '%s') asc limit 1" % (src_tbl, optype2distfn[optype], v)
+                    cursor.execute(sql)
+                    res = cursor.fetchall()
+                    resid = res[0][0]
+                    if resid == rid:
+                        recall += 1
+                i += 1
 
     return recall
 
 
 def recall_run(host, dbname, src_tbl, dim, nitem, seek, nthread, optype):
     total_recall = 0
+    # generate whole dataset in advance instead of batch by batch to make sure the search time don't include data generation
+    print("start generate", nitem, "vectors")
+    rs = np.random.RandomState(seek)
+    dataset = gen_embed(rs, dim, nitem, 0, optype)
+    print("dataset generated and start search.")
+    # start timer after data generated
     start = timer()
     with concurrent.futures.ThreadPoolExecutor(max_workers=nthread) as executor:
         for index in range(nthread):
-            future = executor.submit(thread_run, host, dbname, src_tbl, dim, nitem, index, nthread, seek, optype)
+            future = executor.submit(thread_run, host, dbname, src_tbl, dim, nitem, index, nthread, seek, optype, dataset)
         for index in range(nthread):
             total_recall += future.result()
 
@@ -227,7 +227,7 @@ if __name__ == "__main__":
 
                 create_table(cursor, src_tbl, dimension)
 
-                insert_embed(cursor, src_tbl, dimension, nitem, seek)
+                insert_embed(cursor, src_tbl, dimension, nitem, seek, optype)
 
                 if algo == "hnsw":
                     create_hnsw_index(cursor, src_tbl, index_name, optype)

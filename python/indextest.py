@@ -44,7 +44,7 @@ def create_table(cursor, tblname, dim):
     cursor.execute(sql)
     sql = "set experimental_ivf_index = 1"
     cursor.execute(sql)
-    sql = "set @probe_limit = 10"
+    sql = "set @probe_limit = 5"
     cursor.execute(sql)
     sql = "set ivf_threads_build = 0"
     cursor.execute(sql)
@@ -165,9 +165,10 @@ def thread_run(host, dbname, src_tbl, dim, nitem, segid, nseg, seek, optype, dat
                     sql = "select id from %s order by %s(embed, '%s') asc limit 1" % (src_tbl, optype2distfn[optype], v)
                     cursor.execute(sql)
                     res = cursor.fetchall()
-                    resid = res[0][0]
-                    if resid == rid:
-                        recall += 1
+                    if res is not None:
+                        resid = res[0][0]
+                        if resid == rid:
+                            recall += 1
                 i += 1
 
     return recall
@@ -185,8 +186,11 @@ def recall_run(host, dbname, src_tbl, dim, nitem, seek, nthread, optype):
     with concurrent.futures.ThreadPoolExecutor(max_workers=nthread) as executor:
         for index in range(nthread):
             future = executor.submit(thread_run, host, dbname, src_tbl, dim, nitem, index, nthread, seek, optype, dataset)
-        for index in range(nthread):
-            total_recall += future.result()
+        try:
+            for index in range(nthread):
+                total_recall += future.result()
+        except Exception as e:
+            print(e)
 
     end = timer()
     rate = total_recall / nitem

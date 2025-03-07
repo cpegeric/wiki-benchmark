@@ -14,14 +14,14 @@ from timeit import default_timer as timer
 # pip install wikitextparser
 # pip install python-docx
 
-wikihome = os.getenv("WIKI_HOME")
+#wikihome = os.getenv("WIKI_HOME")
 
 optype2distfn = {'vector_l2_ops':'l2_distance', 'vector_cosine_ops':'cosine_distance', 'vector_ip_ops':'inner_product'}
 
 
-if wikihome is None:
-    print("WIKI_HOME environment variable not found")
-    sys.exit(10)
+#if wikihome is None:
+#    print("WIKI_HOME environment variable not found")
+#    sys.exit(10)
 
 def set_env(cursor):
     # hnsw table
@@ -93,7 +93,7 @@ def insert_embed(cursor, src_tbl, dim, nitem, seek, optype):
 
         sql = "insert into %s (id, embed) values (%s)" % (src_tbl, "%s, %s")
         #print(sql)
-        #print(res)
+        #print(dataset)
         cursor.executemany(sql, dataset)
         print(batchsz, "rows inserted")
 

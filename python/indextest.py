@@ -31,7 +31,7 @@ def set_env(cursor):
     sql = "set experimental_ivf_index = 1"
     #print(sql)
     cursor.execute(sql)
-    sql = "set @probe_limit = 5"
+    sql = "set probe_limit = 5"
     #print(sql)
     cursor.execute(sql)
 
@@ -44,7 +44,7 @@ def create_table(cursor, tblname, dim):
     cursor.execute(sql)
     sql = "set experimental_ivf_index = 1"
     cursor.execute(sql)
-    sql = "set @probe_limit = 5"
+    sql = "set probe_limit = 5"
     cursor.execute(sql)
     sql = "set ivf_threads_build = 0"
     cursor.execute(sql)

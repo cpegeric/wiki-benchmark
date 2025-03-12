@@ -18,6 +18,7 @@ from timeit import default_timer as timer
 
 optype2distfn = {'vector_l2_ops':'l2_distance', 'vector_cosine_ops':'cosine_distance', 'vector_ip_ops':'inner_product'}
 
+batch_test_size = 1
 
 #if wikihome is None:
 #    print("WIKI_HOME environment variable not found")
@@ -34,6 +35,11 @@ def set_env(cursor):
     sql = "set probe_limit = 5"
     #print(sql)
     cursor.execute(sql)
+
+    if batch_test_size > 1:
+        sql = "set @mo_batch_test_size = %d" % (batch_test_size)
+        print(sql)
+        cursor.execute(sql)
 
 
 
@@ -122,7 +128,7 @@ def create_ivfflat_index(cursor, src_tbl, index_name, optype, nitem):
 
 
 def create_hnsw_index(cursor, src_tbl, index_name, optype):
-    sql = "create index %s using hnsw on %s(embed) m 48 op_type \"%s\"" % (index_name, src_tbl, optype)
+    sql = "create index %s using hnsw on %s(embed) m=48 op_type \"%s\"" % (index_name, src_tbl, optype)
     print(sql)
     start = timer()
     cursor.execute(sql)
@@ -194,7 +200,8 @@ def recall_run(host, dbname, src_tbl, dim, nitem, seek, nthread, optype):
 
     end = timer()
     rate = total_recall / nitem
-    print("recall rate = ", rate, ", elapsed = ", end-start, " sec, ", (end-start)/nitem*1000, " ms/row, qps = ", nitem/(end-start))
+    total_item = nitem * batch_test_size
+    print("recall rate = ", rate, ", elapsed = ", end-start, " sec, ", (end-start)/total_item*1000, " ms/row, qps = ", total_item/(end-start))
 
 
 if __name__ == "__main__":

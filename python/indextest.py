@@ -128,7 +128,7 @@ def create_ivfflat_index(cursor, src_tbl, index_name, optype, nitem):
 
 
 def create_hnsw_index(cursor, src_tbl, index_name, optype):
-    sql = "create index %s using hnsw on %s(embed) m=48 op_type \"%s\"" % (index_name, src_tbl, optype)
+    sql = "create index %s using hnsw on %s(embed) m=12 op_type \"%s\"" % (index_name, src_tbl, optype)
     print(sql)
     start = timer()
     cursor.execute(sql)
@@ -190,10 +190,11 @@ def recall_run(host, dbname, src_tbl, dim, nitem, seek, nthread, optype):
     # start timer after data generated
     start = timer()
     with concurrent.futures.ThreadPoolExecutor(max_workers=nthread) as executor:
+        futures = []
         for index in range(nthread):
-            future = executor.submit(thread_run, host, dbname, src_tbl, dim, nitem, index, nthread, seek, optype, dataset)
+            futures.append(executor.submit(thread_run, host, dbname, src_tbl, dim, nitem, index, nthread, seek, optype, dataset))
         try:
-            for index in range(nthread):
+            for future in futures:
                 total_recall += future.result()
         except Exception as e:
             print(e)

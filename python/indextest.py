@@ -193,11 +193,12 @@ def recall_run(host, dbname, src_tbl, dim, nitem, seek, nthread, optype):
         futures = []
         for index in range(nthread):
             futures.append(executor.submit(thread_run, host, dbname, src_tbl, dim, nitem, index, nthread, seek, optype, dataset))
-        try:
-            for future in futures:
+
+        for future in concurrent.futures.as_completed(futures):
+            try:
                 total_recall += future.result()
-        except Exception as e:
-            print(e)
+            except Exception as e:
+                print(e)
 
     end = timer()
     rate = total_recall / nitem
@@ -248,7 +249,7 @@ if __name__ == "__main__":
 
             elif action == "recall":
                 # concurrency thread count
-                nthread = 8
+                nthread = 12
                 recall_run(host, dbname, src_tbl, dimension, nitem, seek, nthread, optype)
             else:
                 select_embed(cursor, src_tbl, dimension, optype)

@@ -55,6 +55,9 @@ def create_table(cursor, tblname, dim):
     sql = "set ivf_threads_build = 0"
     cursor.execute(sql)
 
+    sql = "set hnsw_max_index_capacity = 1000000"
+    cursor.execute(sql)
+
     sql = "create table %s (id bigint primary key auto_increment, embed vecf32(%d))" % (tblname, dim)
     #sql = "create table %s (id bigint primary key auto_increment, embed vecf64(%d))" % (tblname, dim)
     print(sql)
@@ -128,7 +131,7 @@ def create_ivfflat_index(cursor, src_tbl, index_name, optype, nitem):
 
 
 def create_hnsw_index(cursor, src_tbl, index_name, optype):
-    sql = "create index %s using hnsw on %s(embed) m=12 op_type \"%s\"" % (index_name, src_tbl, optype)
+    sql = "create index %s using hnsw on %s(embed) m=64 ef_construction=200 op_type \"%s\"" % (index_name, src_tbl, optype)
     print(sql)
     start = timer()
     cursor.execute(sql)

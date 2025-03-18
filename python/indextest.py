@@ -3,8 +3,6 @@ import sys, os
 import tempfile
 from pathlib import Path
 import subprocess
-import wikitextparser as wtp
-from docx import Document
 import numpy as np
 import concurrent.futures
 import math

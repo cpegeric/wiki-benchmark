@@ -52,7 +52,13 @@ def create_table(cursor, tblname, dim):
     cursor.execute(sql)
     sql = "set ivf_threads_build = 0"
     cursor.execute(sql)
+    sql = "set kmeans_train_percent = 1"
+    cursor.execute(sql)
+    sql = "set kmeans_max_iteration = 20"
+    cursor.execute(sql)
 
+    #sql = "set hnsw_threads_build = 4"
+    #cursor.execute(sql)
     sql = "set hnsw_max_index_capacity = 1000000"
     cursor.execute(sql)
 
@@ -119,6 +125,8 @@ def create_ivfflat_index(cursor, src_tbl, index_name, optype, nitem):
         lists = int(math.sqrt(nitem))
     if lists < 10:
         lists = 10
+
+    lists = 3000
     sql = "create index %s using ivfflat on %s(embed) lists=%s op_type \"%s\"" % (index_name, src_tbl, lists, optype)
     print(sql)
     start = timer()
@@ -136,6 +144,43 @@ def create_hnsw_index(cursor, src_tbl, index_name, optype):
     end = timer()
     print("create index time = ", end-start, " sec")
 
+
+def get_pitr_name(dbname, src_tbl):
+    pitr = "pitr_table_%s_%s" % (dbname, src_tbl)
+    return pitr
+
+def get_cdc_name(dbname, src_tbl, index_name):
+    cdctask = "cdc_%s_%s_%s" % (dbname, src_tbl, index_name)
+    return cdctask
+
+def create_cdc(cursor, dbname, src_tbl, index_name):
+    pitr = get_pitr_name(dbname, src_tbl)
+    cdctask = get_cdc_name(dbname, src_tbl, index_name)
+
+    sql = "create pitr `%s` for table %s %s range 2 'h'" % (pitr, dbname, src_tbl)
+    print(sql)
+    cursor.execute(sql)
+
+    dummyurl = "mysql://root:111@127.0.0.1:6001"
+    sql = "create cdc `%s` '%s' 'hnswsync' '%s' '%s.%s' {'Level'='table'}" % (cdctask, dummyurl, dummyurl, dbname, src_tbl)
+    print(sql)
+    cursor.execute(sql)
+
+
+def drop_cdc(cursor, dbname, src_tbl, index_name):
+    pitr = get_pitr_name(dbname, src_tbl)
+    cdctask = get_cdc_name(dbname, src_tbl, index_name)
+
+    sql = "drop pitr if exists `%s`" % (pitr)
+    print(sql)
+    cursor.execute(sql)
+
+    sql = "drop cdc task `%s`" % (cdctask)
+    print(sql)
+    try:
+        cursor.execute(sql)
+    except pymysql.Error as e:
+        print("mysql error %d: %s" % (e.args[0], e.args[1]))
 
 def select_embed(cursor, src_tbl, dim, optype):
     array = np.random.rand(1, dim)
@@ -247,6 +292,22 @@ if __name__ == "__main__":
                     create_hnsw_index(cursor, src_tbl, index_name, optype)
                 else:
                     create_ivfflat_index(cursor, src_tbl, index_name, optype, nitem)
+
+            elif action == "buildcdc":
+                drop_table(cursor, src_tbl)
+
+                drop_cdc(cursor, dbname, src_tbl, index_name)
+                
+                create_table(cursor, src_tbl, dimension)
+
+                if algo == "hnsw":
+                    create_hnsw_index(cursor, src_tbl, index_name, optype)
+                else:
+                    create_ivfflat_index(cursor, src_tbl, index_name, optype, nitem)
+
+                create_cdc(cursor, dbname, src_tbl, index_name)
+
+                insert_embed(cursor, src_tbl, dimension, nitem, seek, optype)
 
             elif action == "recall":
                 # concurrency thread count

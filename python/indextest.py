@@ -95,12 +95,12 @@ def gen_embed(rs, dim, nitem, start, optype):
 
     return res
 
-def insert_embed(cursor, src_tbl, dim, nitem, seek, optype):
-    rs = np.random.RandomState(seek)
+def insert_embed(cursor, rs, src_tbl, dim, nitem, seek, optype, start=0):
+    #rs = np.random.RandomState(seek)
     batchsz = 1000
-    n = 0
-    while n < nitem:
-        if n + batchsz > nitem:
+    n = start
+    while n < start+nitem:
+        if n + batchsz > start+nitem:
             batchsz = nitem - n
         dataset = gen_embed(rs, dim, batchsz, n, optype)
 
@@ -318,7 +318,8 @@ if __name__ == "__main__":
 
                 create_table(cursor, src_tbl, dimension)
 
-                insert_embed(cursor, src_tbl, dimension, nitem, seek, optype)
+                rs = np.random.RandomState(seek)
+                insert_embed(cursor, rs, src_tbl, dimension, nitem, seek, optype)
 
                 if algo == "hnsw":
                     create_hnsw_index(cursor, src_tbl, index_name, optype)
@@ -330,12 +331,18 @@ if __name__ == "__main__":
 
                 create_table(cursor, src_tbl, dimension)
 
+                rs = np.random.RandomState(seek)
                 if algo == "hnsw":
                     create_hnsw_index(cursor, src_tbl, index_name, optype)
+                    insert_embed(cursor, rs, src_tbl, dimension, nitem, seek, optype)
                 else:
+                    # 50% data for training centroids
+                    insert_embed(cursor, rs, src_tbl, dimension, int(nitem/2), seek, optype)
                     create_ivfflat_index(cursor, src_tbl, index_name, optype, nitem, True)
 
-                insert_embed(cursor, src_tbl, dimension, nitem, seek, optype)
+                    # 50% data simply assign to centoids
+                    insert_embed(cursor, rs, src_tbl, dimension, int(nitem/2), seek, optype, int(nitem/2))
+
 
             elif action == "recall":
                 # concurrency thread count

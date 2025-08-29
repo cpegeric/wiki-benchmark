@@ -117,7 +117,7 @@ def insert_embed(cursor, src_tbl, dim, nitem, seek, optype):
 # For datasets with more than one million rows, use lists = sqrt(rows).
 # It is generally advisable to have at least 10 clusters.
 # The recommended value for the probes parameter is probes = sqrt(lists).
-def create_ivfflat_index(cursor, src_tbl, index_name, optype, nitem):
+def create_ivfflat_index(cursor, src_tbl, index_name, optype, nitem, asyncopt):
     lists = 0
     if nitem < 1000000:
         lists = int(nitem/1000)
@@ -126,8 +126,13 @@ def create_ivfflat_index(cursor, src_tbl, index_name, optype, nitem):
     if lists < 10:
         lists = 10
 
-    lists = 3000
-    sql = "create index %s using ivfflat on %s(embed) lists=%s op_type \"%s\"" % (index_name, src_tbl, lists, optype)
+    #lists = 3000
+    asyncstr = ""
+    if asyncopt:
+        asyncstr  = "ASYNC"
+
+    sql = "create index %s using ivfflat on %s(embed) lists=%s op_type \"%s\" %s" % (index_name, src_tbl, lists, optype, asyncstr)
+
     print(sql)
     start = timer()
     cursor.execute(sql)
@@ -145,44 +150,7 @@ def create_hnsw_index(cursor, src_tbl, index_name, optype):
     print("create index time = ", end-start, " sec")
 
 
-def get_pitr_name(dbname, src_tbl):
-    pitr = "pitr_table_%s_%s" % (dbname, src_tbl)
-    return pitr
-
-def get_cdc_name(dbname, src_tbl, index_name):
-    cdctask = "cdc_%s_%s_%s" % (dbname, src_tbl, index_name)
-    return cdctask
-
-def create_cdc(cursor, dbname, src_tbl, index_name):
-    pitr = get_pitr_name(dbname, src_tbl)
-    cdctask = get_cdc_name(dbname, src_tbl, index_name)
-
-    sql = "create pitr `%s` for table %s %s range 2 'h'" % (pitr, dbname, src_tbl)
-    print(sql)
-    cursor.execute(sql)
-
-    dummyurl = "mysql://root:111@127.0.0.1:6001"
-    sql = "create cdc `%s` '%s' 'hnswsync' '%s' '%s.%s' {'Level'='table'}" % (cdctask, dummyurl, dummyurl, dbname, src_tbl)
-    print(sql)
-    cursor.execute(sql)
-
-
-def drop_cdc(cursor, dbname, src_tbl, index_name):
-    pitr = get_pitr_name(dbname, src_tbl)
-    cdctask = get_cdc_name(dbname, src_tbl, index_name)
-
-    sql = "drop pitr if exists `%s`" % (pitr)
-    print(sql)
-    cursor.execute(sql)
-
-    sql = "drop cdc task `%s`" % (cdctask)
-    print(sql)
-    try:
-        cursor.execute(sql)
-    except pymysql.Error as e:
-        print("mysql error %d: %s" % (e.args[0], e.args[1]))
-
-def select_embed(cursor, src_tbl, dim, optype):
+def select_random_embed(cursor, src_tbl, dim, optype):
     array = np.random.rand(1, dim)
     s = '[' + ','.join(str(x) for x in array[0]) + ']'
     sql = "select id from %s order by %s(embed, '%s') asc limit 1" % (src_tbl, optype2distfn[optype], s)
@@ -190,6 +158,14 @@ def select_embed(cursor, src_tbl, dim, optype):
     cursor.execute(sql)
     res = cursor.fetchall()
     print(res)
+
+def select_embed(cursor, src_tbl, dim, optype, array):
+    sql = "select id from %s order by %s(embed, '%s') asc limit 1" % (src_tbl, optype2distfn[optype], array)
+    #print(sql)
+    cursor.execute(sql)
+    res = cursor.fetchall()
+    #print(res)
+    return res
 
 
 def drop_table(cursor, tblname):
@@ -252,11 +228,67 @@ def recall_run(host, dbname, src_tbl, dim, nitem, seek, nthread, optype):
     print("recall rate = ", rate, ", elapsed = ", end-start, " sec, ", (end-start)/total_item*1000, " ms/row, qps = ", total_item/(end-start))
 
 
+def recall_run(host, dbname, src_tbl, dim, nitem, seek, nthread, optype):
+    total_recall = 0
+    # generate whole dataset in advance instead of batch by batch to make sure the search time don't include data generation
+    print("start generate", nitem, "vectors")
+    rs = np.random.RandomState(seek)
+    dataset = gen_embed(rs, dim, nitem, 0, optype)
+    print("dataset generated and start search.")
+    # start timer after data generated
+    start = timer()
+    with concurrent.futures.ThreadPoolExecutor(max_workers=nthread) as executor:
+        futures = []
+        for index in range(nthread):
+            futures.append(executor.submit(thread_run, host, dbname, src_tbl, dim, nitem, index, nthread, seek, optype, dataset))
+
+        for future in concurrent.futures.as_completed(futures):
+            try:
+                total_recall += future.result()
+            except Exception as e:
+                print(e)
+
+    end = timer()
+    rate = total_recall / nitem
+    total_item = nitem * batch_test_size
+    print("recall rate = ", rate, ", elapsed = ", end-start, " sec, ", (end-start)/total_item*1000, " ms/row, qps = ", total_item/(end-start))
+
+def sample_run(cursor, host, dbname, src_tbl, dim, nitem, seek, nthread, optype):
+    rs = np.random.RandomState(seek)
+    batchsz = 1000
+    n = 0
+    nmatch = 0
+    nsample = 0
+    while n < nitem:
+        if n + batchsz > nitem:
+            batchsz = nitem - n
+        dataset = gen_embed(rs, dim, batchsz, n, optype)
+
+        #pick first and last item
+        #print(dataset[0])
+        #print(dataset[len(dataset)-1])
+
+        size = len(dataset)
+        nsample += 2
+
+        res = select_embed(cursor, src_tbl, dim, optype, dataset[0][1])
+        if res[0][0] == dataset[0][0]:
+            nmatch += 1
+            #print("match ", dataset[0][0])
+        res = select_embed(cursor, src_tbl, dim, optype, dataset[size-1][1])
+        if res[0][0] == dataset[size-1][0]:
+            nmatch += 1
+            #print("match ", dataset[size-1][0])
+
+        n += batchsz
+
+    print("nsample= ", nsample , ", nmatch= ", nmatch, ", ratio= ", nmatch/nsample)
+
 if __name__ == "__main__":
     nargv = len(sys.argv)
     if nargv != 10:
-        print("usage: indextest.py [build|recall|search] host dbname src_tbl indexname optype dimension nitem [hnsw|ivf]")
-        print("e.g python3 indextest.py [build|recall|search] localhost zh srctbl idx [vector_l2_ops|vector_cosine_ops|vector_ip_ops] 3072 100000 hnsw")
+        print("usage: indextest.py [build|buildcdc|recall|search|sample] host dbname src_tbl indexname optype dimension nitem [hnsw|ivf]")
+        print("e.g python3 indextest.py [build|buildcdc|recall|search|sample] localhost zh srctbl idx [vector_l2_ops|vector_cosine_ops|vector_ip_ops] 3072 100000 hnsw")
         sys.exit(1)
 
     action = sys.argv[1]
@@ -291,21 +323,17 @@ if __name__ == "__main__":
                 if algo == "hnsw":
                     create_hnsw_index(cursor, src_tbl, index_name, optype)
                 else:
-                    create_ivfflat_index(cursor, src_tbl, index_name, optype, nitem)
+                    create_ivfflat_index(cursor, src_tbl, index_name, optype, nitem, False)
 
             elif action == "buildcdc":
                 drop_table(cursor, src_tbl)
 
-                drop_cdc(cursor, dbname, src_tbl, index_name)
-                
                 create_table(cursor, src_tbl, dimension)
 
                 if algo == "hnsw":
                     create_hnsw_index(cursor, src_tbl, index_name, optype)
                 else:
-                    create_ivfflat_index(cursor, src_tbl, index_name, optype, nitem)
-
-                create_cdc(cursor, dbname, src_tbl, index_name)
+                    create_ivfflat_index(cursor, src_tbl, index_name, optype, nitem, True)
 
                 insert_embed(cursor, src_tbl, dimension, nitem, seek, optype)
 
@@ -313,6 +341,9 @@ if __name__ == "__main__":
                 # concurrency thread count
                 nthread = 12
                 recall_run(host, dbname, src_tbl, dimension, nitem, seek, nthread, optype)
+            elif action == "sample":
+                nthread = 12
+                sample_run(cursor, host, dbname, src_tbl, dimension, nitem, seek, nthread, optype)
             else:
-                select_embed(cursor, src_tbl, dimension, optype)
+                select_random_embed(cursor, src_tbl, dimension, optype)
 

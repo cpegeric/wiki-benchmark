@@ -321,6 +321,13 @@ if __name__ == "__main__":
     nargv = len(sys.argv)
     if nargv != 10:
         print("usage: indextest.py host dbname src_tbl indexname optype dimension nitem [hnsw|ivf] [build|buildcdc|recall|search|sample|sample_delete] ")
+        print("     build -- build model in synchronous mode")
+        print("     buildcdc -- build model in asynchronous mode")
+        print("     recall -- check the recall rate from the training data")
+        print("     search -- do single search with random vector")
+        print("     sample -- do sampling check")
+        print("     sample_delete - delete data from sampling check")
+        print()
         print("e.g python3 indextest.py localhost zh srctbl idx [vector_l2_ops|vector_cosine_ops|vector_ip_ops] 3072 100000 hnsw [build|buildcdc|recall|search|sample|sample_delete] ")
         sys.exit(1)
 

@@ -272,17 +272,50 @@ def sample_run(cursor, host, dbname, src_tbl, dim, nitem, seek, nthread, optype)
         nsample += 2
 
         res = select_embed(cursor, src_tbl, dim, optype, dataset[0][1])
-        if res[0][0] == dataset[0][0]:
+        if res is not None and res[0][0] == dataset[0][0]:
             nmatch += 1
             #print("match ", dataset[0][0])
         res = select_embed(cursor, src_tbl, dim, optype, dataset[size-1][1])
-        if res[0][0] == dataset[size-1][0]:
+        if res is not None and res[0][0] == dataset[size-1][0]:
             nmatch += 1
             #print("match ", dataset[size-1][0])
 
         n += batchsz
 
     print("nsample= ", nsample , ", nmatch= ", nmatch, ", ratio= ", nmatch/nsample)
+
+def sample_delete_run(cursor, host, dbname, src_tbl, dim, nitem, seek, nthread, optype):
+    rs = np.random.RandomState(seek)
+    batchsz = 1000
+    n = 0
+    nmatch = 0
+    nsample = 0
+
+    delete = []
+    while n < nitem:
+        if n + batchsz > nitem:
+            batchsz = nitem - n
+        dataset = gen_embed(rs, dim, batchsz, n, optype)
+
+        #pick first and last item
+        #print(dataset[0])
+        #print(dataset[len(dataset)-1])
+
+        size = len(dataset)
+        nsample += 2
+
+        delete.append(dataset[0][0])
+        delete.append(dataset[size-1][0])
+
+        n += batchsz
+
+    s = ','.join(str(x) for x in delete)
+
+    sql = "DELETE FROM %s WHERE id IN (%s)" % (src_tbl, s)
+    
+    print(sql)
+    cursor.execute(sql)
+
 
 if __name__ == "__main__":
     nargv = len(sys.argv)
@@ -351,6 +384,9 @@ if __name__ == "__main__":
             elif action == "sample":
                 nthread = 12
                 sample_run(cursor, host, dbname, src_tbl, dimension, nitem, seek, nthread, optype)
+            elif action == "sample_delete":
+                nthread = 12
+                sample_delete_run(cursor, host, dbname, src_tbl, dimension, nitem, seek, nthread, optype)
             else:
                 select_random_embed(cursor, src_tbl, dimension, optype)
 

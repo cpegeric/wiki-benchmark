@@ -320,19 +320,19 @@ def sample_delete_run(cursor, host, dbname, src_tbl, dim, nitem, seek, nthread, 
 if __name__ == "__main__":
     nargv = len(sys.argv)
     if nargv != 10:
-        print("usage: indextest.py [build|buildcdc|recall|search|sample] host dbname src_tbl indexname optype dimension nitem [hnsw|ivf]")
-        print("e.g python3 indextest.py [build|buildcdc|recall|search|sample] localhost zh srctbl idx [vector_l2_ops|vector_cosine_ops|vector_ip_ops] 3072 100000 hnsw")
+        print("usage: indextest.py host dbname src_tbl indexname optype dimension nitem [hnsw|ivf] [build|buildcdc|recall|search|sample|sample_delete] ")
+        print("e.g python3 indextest.py localhost zh srctbl idx [vector_l2_ops|vector_cosine_ops|vector_ip_ops] 3072 100000 hnsw [build|buildcdc|recall|search|sample|sample_delete] ")
         sys.exit(1)
 
-    action = sys.argv[1]
-    host = sys.argv[2]
-    dbname = sys.argv[3]
-    src_tbl = sys.argv[4]
-    index_name = sys.argv[5]
-    optype = sys.argv[6]
-    dimension = int(sys.argv[7])
-    nitem = int(sys.argv[8])
-    algo = sys.argv[9]
+    host = sys.argv[1]
+    dbname = sys.argv[2]
+    src_tbl = sys.argv[3]
+    index_name = sys.argv[4]
+    optype = sys.argv[5]
+    dimension = int(sys.argv[6])
+    nitem = int(sys.argv[7])
+    algo = sys.argv[8]
+    action = sys.argv[9]
 
     try:
         ret = optype2distfn[optype]

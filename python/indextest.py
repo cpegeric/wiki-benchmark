@@ -14,7 +14,7 @@ from timeit import default_timer as timer
 
 #wikihome = os.getenv("WIKI_HOME")
 
-optype2distfn = {'vector_l2_ops':'l2_distance', 'vector_cosine_ops':'cosine_distance', 'vector_ip_ops':'inner_product'}
+optype2distfn = {'vector_l2_ops':'l2_distance', 'vector_cosine_ops':'cosine_distance', 'vector_ip_ops':'inner_product', 'vector_l2sq_ops':'l2_distance_sq'}
 
 batch_test_size = 1
 
@@ -272,11 +272,11 @@ def sample_run(cursor, host, dbname, src_tbl, dim, nitem, seek, nthread, optype)
         nsample += 2
 
         res = select_embed(cursor, src_tbl, dim, optype, dataset[0][1])
-        if res is not None and res[0][0] == dataset[0][0]:
+        if res is not None and len(res) > 0 and res[0][0] == dataset[0][0]:
             nmatch += 1
             #print("match ", dataset[0][0])
         res = select_embed(cursor, src_tbl, dim, optype, dataset[size-1][1])
-        if res is not None and res[0][0] == dataset[size-1][0]:
+        if res is not None and len(res) > 0 and res[0][0] == dataset[size-1][0]:
             nmatch += 1
             #print("match ", dataset[size-1][0])
 

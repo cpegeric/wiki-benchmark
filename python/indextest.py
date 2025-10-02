@@ -101,7 +101,7 @@ def insert_embed(cursor, rs, src_tbl, dim, nitem, seek, optype, start=0):
     n = start
     while n < start+nitem:
         if n + batchsz > start+nitem:
-            batchsz = nitem - n
+            batchsz = start+nitem - n
         dataset = gen_embed(rs, dim, batchsz, n, optype)
 
         sql = "insert into %s (id, embed) values (%s)" % (src_tbl, "%s, %s")
@@ -381,7 +381,7 @@ if __name__ == "__main__":
                     create_ivfflat_index(cursor, src_tbl, index_name, optype, nitem, True)
 
                     # 50% data simply assign to centoids
-                    insert_embed(cursor, rs, src_tbl, dimension, int(nitem/2), seek, optype, int(nitem/2))
+                    insert_embed(cursor, rs, src_tbl, dimension, nitem-int(nitem/2), seek, optype, int(nitem/2))
 
 
             elif action == "recall":

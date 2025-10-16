@@ -142,7 +142,7 @@ def create_ivfflat_index(cursor, src_tbl, index_name, optype, nitem, asyncopt):
 
 
 def create_hnsw_index(cursor, src_tbl, index_name, optype):
-    sql = "create index %s using hnsw on %s(embed) m=64 ef_construction=200 op_type \"%s\"" % (index_name, src_tbl, optype)
+    sql = "create index %s using hnsw on %s(embed) m=100 ef_construction=500 ef_search=200 op_type \"%s\"" % (index_name, src_tbl, optype)
     print(sql)
     start = timer()
     cursor.execute(sql)

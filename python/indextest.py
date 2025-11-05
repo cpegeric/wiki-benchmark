@@ -52,7 +52,7 @@ def create_table(cursor, tblname, dim):
     cursor.execute(sql)
     sql = "set ivf_threads_build = 0"
     cursor.execute(sql)
-    sql = "set kmeans_train_percent = 1"
+    sql = "set kmeans_train_percent = 10"
     cursor.execute(sql)
     sql = "set kmeans_max_iteration = 20"
     cursor.execute(sql)
@@ -142,7 +142,15 @@ def create_ivfflat_index(cursor, src_tbl, index_name, optype, nitem, asyncopt):
 
 
 def create_hnsw_index(cursor, src_tbl, index_name, optype):
+    # for random data, recall rate is highest
     sql = "create index %s using hnsw on %s(embed) m=100 ef_construction=500 ef_search=200 op_type \"%s\"" % (index_name, src_tbl, optype)
+
+    # for high dimension real data
+    #sql = "create index %s using hnsw on %s(embed) m=20 ef_construction=100 ef_search=100 op_type \"%s\"" % (index_name, src_tbl, optype)
+
+    # for low dimension real data
+    #sql = "create index %s using hnsw on %s(embed) m=10 ef_construction=100 ef_search=100 op_type \"%s\"" % (index_name, src_tbl, optype)
+
     print(sql)
     start = timer()
     cursor.execute(sql)
@@ -193,10 +201,8 @@ def thread_run(host, dbname, src_tbl, dim, nitem, segid, nseg, seek, optype, dat
                     sql = "select id from %s order by %s(embed, '%s') asc limit 1" % (src_tbl, optype2distfn[optype], v)
                     cursor.execute(sql)
                     res = cursor.fetchall()
-                    if res is not None:
-                        resid = res[0][0]
-                        if resid == rid:
-                            recall += 1
+                    if res is not None and len(res) > 0 and res[0][0] == rid:
+                        recall += 1
                 i += 1
 
     return recall

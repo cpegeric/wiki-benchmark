@@ -27,9 +27,6 @@ def set_env(cursor):
     sql = "set experimental_hnsw_index = 1"
     #print(sql)
     cursor.execute(sql)
-    sql = "set experimental_ivf_index = 1"
-    #print(sql)
-    cursor.execute(sql)
     sql = "set probe_limit = 5"
     #print(sql)
     cursor.execute(sql)
@@ -46,8 +43,6 @@ def create_table(cursor, tblname, dim):
     sql = "set experimental_hnsw_index = 1"
     #print(sql)
     cursor.execute(sql)
-    sql = "set experimental_ivf_index = 1"
-    cursor.execute(sql)
     sql = "set probe_limit = 5"
     cursor.execute(sql)
     sql = "set ivf_threads_build = 0"
@@ -62,8 +57,8 @@ def create_table(cursor, tblname, dim):
     sql = "set hnsw_max_index_capacity = 1000000"
     cursor.execute(sql)
 
-    sql = "create table %s (id bigint primary key auto_increment, embed vecf32(%d))" % (tblname, dim)
-    #sql = "create table %s (id bigint primary key auto_increment, embed vecf64(%d))" % (tblname, dim)
+    sql = "create table %s (id bigint primary key auto_increment, embed vecf32(%d), value bigint)" % (tblname, dim)
+    #sql = "create table %s (id bigint primary key auto_increment, embed vecf64(%d), value bigint)" % (tblname, dim)
     print(sql)
     cursor.execute(sql)
 
@@ -80,6 +75,7 @@ def normalize(array):
 
 def gen_embed(rs, dim, nitem, start, optype):
     array = rs.rand(nitem, dim)
+    intarr = rs.randint(0, 128, nitem)
     #print(array)
     normalized = []
     for x in array:
@@ -88,9 +84,9 @@ def gen_embed(rs, dim, nitem, start, optype):
     #print(array)
     res = []
     i = start
-    for a in array:
+    for a, v in zip(array, intarr):
         s = '[' + ','.join(str(x) for x in a) + ']'
-        res.append((i, s))
+        res.append((i, s, v))
         i+=1
 
     return res
@@ -104,7 +100,7 @@ def insert_embed(cursor, rs, src_tbl, dim, nitem, seek, optype, start=0):
             batchsz = start+nitem - n
         dataset = gen_embed(rs, dim, batchsz, n, optype)
 
-        sql = "insert into %s (id, embed) values (%s)" % (src_tbl, "%s, %s")
+        sql = "insert into %s (id, embed, value) values (%s)" % (src_tbl, "%s, %s, %s")
         #print(sql)
         #print(dataset)
         cursor.executemany(sql, dataset)

@@ -27,7 +27,7 @@ def set_env(cursor):
     sql = "set experimental_hnsw_index = 1"
     #print(sql)
     cursor.execute(sql)
-    sql = "set probe_limit = 5"
+    sql = "set probe_limit = 3"
     #print(sql)
     cursor.execute(sql)
 
@@ -36,6 +36,10 @@ def set_env(cursor):
         print(sql)
         cursor.execute(sql)
 
+    sql = "set ivf_small_centroid_threshold = 0"
+    cursor.execute(sql)
+    sql = "set ivf_preload_entries = 0"
+    cursor.execute(sql)
 
 
 def create_table(cursor, tblname, dim):
@@ -195,8 +199,8 @@ def thread_run(host, dbname, src_tbl, dim, nitem, segid, nseg, seek, optype, dat
                     rid = row[0]
                     v = row[1]
                     #prefilter sql
-                    sql = "select id from %s WHERE value < 10 order by %s(embed, '%s') asc limit 1 by rank with option 'mode=pre'" % (src_tbl, optype2distfn[optype], v)
-                    #sql = "select id from %s order by %s(embed, '%s') asc limit 1" % (src_tbl, optype2distfn[optype], v)
+                    #sql = "select id from %s WHERE value < 10 order by %s(embed, '%s') asc limit 1 by rank with option 'mode=pre'" % (src_tbl, optype2distfn[optype], v)
+                    sql = "select id from %s order by %s(embed, '%s') asc limit 1" % (src_tbl, optype2distfn[optype], v)
                     cursor.execute(sql)
                     res = cursor.fetchall()
                     if res is not None and len(res) > 0 and res[0][0] == rid:
